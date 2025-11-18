@@ -20,6 +20,9 @@ from router import get_router, handle_router_stats_request, handle_router_backen
 from input_validation import get_input_validator, handle_validation_stats_request
 from deduplication import get_dedup_manager, handle_dedup_stats_request, handle_dedup_clear_request
 from webhooks import get_webhook_manager, handle_webhooks_stats_request, handle_webhooks_list_request, handle_webhooks_subscribe_request, handle_webhooks_unsubscribe_request, EventType
+from providers import get_provider_manager, handle_providers_list_request, handle_provider_health_request
+from cost_optimizer import get_cost_optimizer, handle_optimizer_stats_request, handle_optimizer_recommend_request, handle_optimizer_report_request
+from model_catalog import get_model_catalog, handle_models_list_request, handle_models_retrieve_request, handle_models_compare_request, handle_models_recommend_request
 
 # Initialize structured logging
 setup_structured_logging()
@@ -54,6 +57,15 @@ router = get_router()
 input_validator = get_input_validator()
 dedup_manager = get_dedup_manager()
 webhook_manager = get_webhook_manager()
+provider_manager = get_provider_manager()
+cost_optimizer = get_cost_optimizer()
+model_catalog = get_model_catalog()
+
+# Add local model to catalog
+model_catalog.add_local_model(
+    vllm_engine.engine_args.model,
+    context_window=getattr(vllm_engine.engine_args, 'max_model_len', 4096)
+)
 
 logger.info("Worker initialized",
     model=vllm_engine.engine_args.model,
@@ -195,6 +207,49 @@ async def handler(job):
             subscription_id=params.get("subscription_id", ""),
         )
         yield result
+        return
+    elif job_input.openai_route == "/providers/list":
+        yield handle_providers_list_request()
+        return
+    elif job_input.openai_route == "/providers/health":
+        result = await handle_provider_health_request()
+        yield result
+        return
+    elif job_input.openai_route == "/optimizer/stats":
+        yield handle_optimizer_stats_request()
+        return
+    elif job_input.openai_route == "/optimizer/recommend":
+        params = job_input.openai_input or {}
+        yield handle_optimizer_recommend_request(
+            messages=params.get("messages", []),
+            strategy=params.get("strategy"),
+            max_tokens=params.get("max_tokens"),
+            required_features=params.get("required_features"),
+            excluded_providers=params.get("excluded_providers"),
+            min_quality=params.get("min_quality"),
+        )
+        return
+    elif job_input.openai_route == "/optimizer/report":
+        yield handle_optimizer_report_request()
+        return
+    elif job_input.openai_route == "/v1/models":
+        params = job_input.openai_input or {}
+        yield handle_models_list_request(
+            provider=params.get("provider"),
+            quality_tier=params.get("quality_tier"),
+        )
+        return
+    elif job_input.openai_route and job_input.openai_route.startswith("/v1/models/"):
+        model_id = job_input.openai_route.split("/v1/models/")[1]
+        yield handle_models_retrieve_request(model_id)
+        return
+    elif job_input.openai_route == "/models/compare":
+        params = job_input.openai_input or {}
+        yield handle_models_compare_request(params.get("model_ids", []))
+        return
+    elif job_input.openai_route == "/models/recommend":
+        params = job_input.openai_input or {}
+        yield handle_models_recommend_request(params.get("task_type", "general"))
         return
 
     # Authentication check
