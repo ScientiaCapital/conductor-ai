@@ -12,3 +12,5 @@ transformers>=4.55.0
 bitsandbytes>=0.45.0
 kernels
 torch==2.6.0
+aiohttp
+psutil
