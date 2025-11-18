@@ -10,10 +10,11 @@ import json
 import time
 import logging
 import asyncio
-import aiohttp
 from typing import Optional, Dict, Any
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
+
+from dlq import get_webhook_sender
 
 logging.basicConfig(level=logging.INFO)
 
@@ -199,37 +200,29 @@ class UsageMeter:
         asyncio.create_task(self._send_to_webhook(records_to_send))
 
     async def _send_to_webhook(self, records: list[UsageRecord]):
-        """Send usage records to configured webhook"""
-        try:
-            headers = {
-                "Content-Type": "application/json",
-            }
-            if self.webhook_auth:
-                headers["Authorization"] = self.webhook_auth
+        """Send usage records to configured webhook with DLQ retry support"""
+        headers = {}
+        if self.webhook_auth:
+            headers["Authorization"] = self.webhook_auth
 
-            payload = {
-                "records": [r.to_dict() for r in records],
-                "batch_size": len(records),
-                "sent_at": datetime.now(timezone.utc).isoformat(),
-            }
+        payload = {
+            "records": [r.to_dict() for r in records],
+            "batch_size": len(records),
+            "sent_at": datetime.now(timezone.utc).isoformat(),
+        }
 
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    self.webhook_url,
-                    json=payload,
-                    headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=30)
-                ) as response:
-                    if response.status >= 400:
-                        body = await response.text()
-                        logging.error(f"[METERING] Webhook error {response.status}: {body}")
-                    else:
-                        logging.debug(f"[METERING] Successfully sent {len(records)} records to webhook")
+        # Use DLQ-enabled webhook sender for automatic retries
+        sender = get_webhook_sender()
+        message_id = f"usage_{int(time.time() * 1000)}_{len(records)}"
 
-        except asyncio.TimeoutError:
-            logging.error(f"[METERING] Webhook timeout after 30s")
-        except Exception as e:
-            logging.error(f"[METERING] Webhook error: {e}")
+        await sender.send(
+            url=self.webhook_url,
+            payload=payload,
+            headers=headers,
+            message_id=message_id
+        )
+
+        logging.debug(f"[METERING] Queued {len(records)} records for webhook delivery")
 
     async def flush(self):
         """Force flush any pending records"""

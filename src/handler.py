@@ -8,10 +8,18 @@ from health import get_health_checker, handle_health_request
 from auth import get_authenticator
 from metrics import get_metrics_collector, handle_metrics_request
 from cache import get_cache, handle_cache_stats_request
+from priority import get_priority_queue, handle_queue_stats_request, PriorityLevel
+from dlq import handle_dlq_stats_request, handle_dlq_list_request, handle_dlq_retry_request
+from validation import validate_config
 
 # Initialize structured logging
 setup_structured_logging()
 logger = get_logger()
+
+# Validate configuration before initializing engines
+logger.info("Validating configuration...")
+if not validate_config():
+    logger.error("Configuration validation failed - some features may not work correctly")
 
 # Initialize engines
 vllm_engine = vLLMEngine()
@@ -26,12 +34,14 @@ metrics_collector.set_model_info(vllm_engine.engine_args.model)
 
 authenticator = get_authenticator()
 cache = get_cache()
+priority_queue = get_priority_queue()
 
 logger.info("Worker initialized",
     model=vllm_engine.engine_args.model,
     auth_enabled=authenticator.enabled,
     cache_enabled=cache.enabled,
-    metrics_enabled=metrics_collector.enabled
+    metrics_enabled=metrics_collector.enabled,
+    priority_queue_enabled=priority_queue.enabled
 )
 
 async def handler(job):
@@ -52,6 +62,25 @@ async def handler(job):
         return
     elif job_input.openai_route == "/cache/stats":
         yield handle_cache_stats_request()
+        return
+    elif job_input.openai_route == "/queue/stats":
+        yield handle_queue_stats_request()
+        return
+    elif job_input.openai_route == "/dlq/stats":
+        yield handle_dlq_stats_request()
+        return
+    elif job_input.openai_route == "/dlq/list":
+        limit = 100
+        if job_input.openai_input:
+            limit = job_input.openai_input.get("limit", 100)
+        yield handle_dlq_list_request(limit)
+        return
+    elif job_input.openai_route == "/dlq/retry":
+        message_id = None
+        if job_input.openai_input:
+            message_id = job_input.openai_input.get("message_id")
+        result = await handle_dlq_retry_request(message_id)
+        yield result
         return
 
     # Authentication check
@@ -100,13 +129,19 @@ async def handler(job):
     if not model_name:
         model_name = os.getenv("OPENAI_SERVED_MODEL_NAME_OVERRIDE", "") or vllm_engine.engine_args.model
 
+    # Determine priority based on user tier
+    user_tier = auth_result.key_info.tier if auth_result.key_info else "free"
+    priority = PriorityLevel.from_tier(user_tier)
+
     # Log request start
     logger.request_start(
         request_id=job_input.request_id,
         route=job_input.openai_route or "native",
         model=model_name,
         stream=job_input.stream,
-        user_id=auth_result.key_info.user_id if auth_result.key_info else None
+        user_id=auth_result.key_info.user_id if auth_result.key_info else None,
+        tier=user_tier,
+        priority=priority.value
     )
 
     # Check cache first
