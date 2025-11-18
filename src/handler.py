@@ -11,6 +11,9 @@ from cache import get_cache, handle_cache_stats_request
 from priority import get_priority_queue, handle_queue_stats_request, PriorityLevel
 from dlq import handle_dlq_stats_request, handle_dlq_list_request, handle_dlq_retry_request
 from validation import validate_config
+from shutdown import get_shutdown_manager, handle_shutdown_status_request
+from timeout import get_timeout_manager
+from audit import get_audit_logger, handle_audit_stats_request, handle_audit_events_request, handle_audit_verify_request, AuditEventType, AuditSeverity
 
 # Initialize structured logging
 setup_structured_logging()
@@ -35,6 +38,9 @@ metrics_collector.set_model_info(vllm_engine.engine_args.model)
 authenticator = get_authenticator()
 cache = get_cache()
 priority_queue = get_priority_queue()
+shutdown_manager = get_shutdown_manager()
+timeout_manager = get_timeout_manager()
+audit_logger = get_audit_logger()
 
 logger.info("Worker initialized",
     model=vllm_engine.engine_args.model,
@@ -82,6 +88,25 @@ async def handler(job):
         result = await handle_dlq_retry_request(message_id)
         yield result
         return
+    elif job_input.openai_route == "/shutdown/status":
+        yield handle_shutdown_status_request()
+        return
+    elif job_input.openai_route == "/audit/stats":
+        yield handle_audit_stats_request()
+        return
+    elif job_input.openai_route == "/audit/events":
+        params = job_input.openai_input or {}
+        yield handle_audit_events_request(
+            limit=params.get("limit", 100),
+            event_type=params.get("event_type"),
+            severity=params.get("severity"),
+            user_id=params.get("user_id"),
+            request_id=params.get("request_id"),
+        )
+        return
+    elif job_input.openai_route == "/audit/verify":
+        yield handle_audit_verify_request()
+        return
 
     # Authentication check
     api_key = None
@@ -91,11 +116,34 @@ async def handler(job):
 
     auth_result = authenticator.authenticate(api_key)
     if not auth_result.authenticated:
+        # Log auth failure
+        await audit_logger.log_auth_failure(
+            reason=auth_result.error_message or "Authentication failed",
+            api_key_id=auth_result.key_info.key_id if auth_result.key_info else None,
+            request_id=job_input.request_id,
+        )
         yield create_error_response(
             auth_result.error_message or "Authentication failed",
             err_type=auth_result.error_code or "AuthenticationError"
         ).model_dump()
         return
+
+    # Check if shutting down
+    if not await shutdown_manager.register_request(job_input.request_id):
+        yield create_error_response(
+            "Service is shutting down, not accepting new requests",
+            err_type="ServiceUnavailable"
+        ).model_dump()
+        return
+
+    # Log auth success
+    if auth_result.key_info:
+        await audit_logger.log_auth_success(
+            user_id=auth_result.key_info.user_id,
+            api_key_id=auth_result.key_info.key_id,
+            organization_id=auth_result.key_info.organization_id,
+            request_id=job_input.request_id,
+        )
 
     engine = OpenAIvLLMEngine if job_input.openai_route else vllm_engine
 
@@ -142,6 +190,15 @@ async def handler(job):
         user_id=auth_result.key_info.user_id if auth_result.key_info else None,
         tier=user_tier,
         priority=priority.value
+    )
+
+    # Audit log request start
+    await audit_logger.log_request_start(
+        request_id=job_input.request_id,
+        user_id=auth_result.key_info.user_id if auth_result.key_info else None,
+        api_key_id=auth_result.key_info.key_id if auth_result.key_info else None,
+        model=model_name,
+        route=job_input.openai_route or "native",
     )
 
     # Check cache first
@@ -211,6 +268,15 @@ async def handler(job):
             request_id=job_input.request_id,
             error_code=error_code,
             error_message=error_message
+        )
+        # Audit log error
+        await audit_logger.log_request_error(
+            request_id=job_input.request_id,
+            error_code=error_code,
+            error_message=error_message,
+            user_id=auth_result.key_info.user_id if auth_result.key_info else None,
+            api_key_id=auth_result.key_info.key_id if auth_result.key_info else None,
+            model=model_name,
         )
         raise
     finally:
@@ -287,6 +353,21 @@ async def handler(job):
 
         # Record request for health metrics
         health_checker.record_request(success=success)
+
+        # Audit log request completion
+        await audit_logger.log_request_complete(
+            request_id=job_input.request_id,
+            user_id=auth_result.key_info.user_id if auth_result.key_info else None,
+            api_key_id=auth_result.key_info.key_id if auth_result.key_info else None,
+            model=model_name,
+            input_tokens=total_input_tokens,
+            output_tokens=total_output_tokens,
+            latency_ms=timer.latency_ms,
+            success=success,
+        )
+
+        # Complete request for shutdown draining
+        await shutdown_manager.complete_request(job_input.request_id)
 
         # Clear correlation ID
         logger.clear_correlation_id()
