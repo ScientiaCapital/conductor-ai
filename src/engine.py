@@ -228,9 +228,7 @@ class OpenAIvLLMEngine(vLLMEngine):
             request_logger=None,
             chat_template=chat_template,
             chat_template_content_format="auto",
-            # enable_reasoning=os.getenv('ENABLE_REASONING', 'false').lower() == 'true',
-            reasoning_parser= os.getenv('REASONING_PARSER', "") or None,
-            # return_token_as_token_ids=False,
+            reasoning_parser=os.getenv('REASONING_PARSER', "") or None,
             enable_auto_tools=os.getenv('ENABLE_AUTO_TOOL_CHOICE', 'false').lower() == 'true',
             tool_parser=os.getenv('TOOL_CALL_PARSER', "") or None,
             enable_prompt_tokens_details=False
