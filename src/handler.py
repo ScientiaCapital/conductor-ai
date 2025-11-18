@@ -14,6 +14,9 @@ from validation import validate_config
 from shutdown import get_shutdown_manager, handle_shutdown_status_request
 from timeout import get_timeout_manager
 from audit import get_audit_logger, handle_audit_stats_request, handle_audit_events_request, handle_audit_verify_request, AuditEventType, AuditSeverity
+from circuit_breaker import get_circuit_manager, get_retry_handler, handle_circuit_stats_request, handle_circuit_reset_request, handle_retry_stats_request, CircuitOpenError
+from quotas import get_quota_manager, handle_quota_stats_request, handle_quota_usage_request
+from router import get_router, handle_router_stats_request, handle_router_backends_request, handle_router_experiments_request, handle_router_weight_request
 
 # Initialize structured logging
 setup_structured_logging()
@@ -41,6 +44,10 @@ priority_queue = get_priority_queue()
 shutdown_manager = get_shutdown_manager()
 timeout_manager = get_timeout_manager()
 audit_logger = get_audit_logger()
+circuit_manager = get_circuit_manager()
+retry_handler = get_retry_handler()
+quota_manager = get_quota_manager()
+router = get_router()
 
 logger.info("Worker initialized",
     model=vllm_engine.engine_args.model,
@@ -107,6 +114,47 @@ async def handler(job):
     elif job_input.openai_route == "/audit/verify":
         yield handle_audit_verify_request()
         return
+    elif job_input.openai_route == "/circuit/stats":
+        yield handle_circuit_stats_request()
+        return
+    elif job_input.openai_route == "/circuit/reset":
+        name = None
+        if job_input.openai_input:
+            name = job_input.openai_input.get("name")
+        result = await handle_circuit_reset_request(name)
+        yield result
+        return
+    elif job_input.openai_route == "/retry/stats":
+        yield handle_retry_stats_request()
+        return
+    elif job_input.openai_route == "/quota/stats":
+        yield handle_quota_stats_request()
+        return
+    elif job_input.openai_route == "/quota/usage":
+        params = job_input.openai_input or {}
+        result = await handle_quota_usage_request(
+            user_id=params.get("user_id", ""),
+            organization_id=params.get("organization_id"),
+        )
+        yield result
+        return
+    elif job_input.openai_route == "/router/stats":
+        yield handle_router_stats_request()
+        return
+    elif job_input.openai_route == "/router/backends":
+        yield handle_router_backends_request()
+        return
+    elif job_input.openai_route == "/router/experiments":
+        yield handle_router_experiments_request()
+        return
+    elif job_input.openai_route == "/router/weight":
+        params = job_input.openai_input or {}
+        result = await handle_router_weight_request(
+            backend=params.get("backend", ""),
+            weight=params.get("weight", 100),
+        )
+        yield result
+        return
 
     # Authentication check
     api_key = None
@@ -145,6 +193,28 @@ async def handler(job):
             request_id=job_input.request_id,
         )
 
+    # Check quota before processing
+    user_id = auth_result.key_info.user_id if auth_result.key_info else "anonymous"
+    org_id = auth_result.key_info.organization_id if auth_result.key_info else None
+    user_tier = auth_result.key_info.tier if auth_result.key_info else "free"
+
+    quota_result = await quota_manager.check_quota(
+        user_id=user_id,
+        organization_id=org_id,
+        tier=user_tier,
+    )
+
+    if not quota_result.allowed:
+        yield create_error_response(
+            quota_result.reason or "Quota exceeded",
+            err_type="QuotaExceeded"
+        ).model_dump()
+        await shutdown_manager.complete_request(job_input.request_id)
+        return
+
+    if quota_result.warning:
+        logger.warning("Quota warning", request_id=job_input.request_id, warning=quota_result.warning)
+
     engine = OpenAIvLLMEngine if job_input.openai_route else vllm_engine
 
     # Initialize metering and tracing
@@ -178,7 +248,6 @@ async def handler(job):
         model_name = os.getenv("OPENAI_SERVED_MODEL_NAME_OVERRIDE", "") or vllm_engine.engine_args.model
 
     # Determine priority based on user tier
-    user_tier = auth_result.key_info.tier if auth_result.key_info else "free"
     priority = PriorityLevel.from_tier(user_tier)
 
     # Log request start
@@ -337,6 +406,13 @@ async def handler(job):
                 auth_result.key_info.key_id,
                 total_input_tokens + total_output_tokens
             )
+
+        # Record quota usage
+        await quota_manager.record_usage(
+            user_id=user_id,
+            organization_id=org_id,
+            tokens=total_input_tokens + total_output_tokens,
+        )
 
         # Cache successful responses
         if success and all_batches and not job_input.stream:
