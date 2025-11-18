@@ -17,6 +17,9 @@ from audit import get_audit_logger, handle_audit_stats_request, handle_audit_eve
 from circuit_breaker import get_circuit_manager, get_retry_handler, handle_circuit_stats_request, handle_circuit_reset_request, handle_retry_stats_request, CircuitOpenError
 from quotas import get_quota_manager, handle_quota_stats_request, handle_quota_usage_request
 from router import get_router, handle_router_stats_request, handle_router_backends_request, handle_router_experiments_request, handle_router_weight_request
+from input_validation import get_input_validator, handle_validation_stats_request
+from deduplication import get_dedup_manager, handle_dedup_stats_request, handle_dedup_clear_request
+from webhooks import get_webhook_manager, handle_webhooks_stats_request, handle_webhooks_list_request, handle_webhooks_subscribe_request, handle_webhooks_unsubscribe_request, EventType
 
 # Initialize structured logging
 setup_structured_logging()
@@ -48,6 +51,9 @@ circuit_manager = get_circuit_manager()
 retry_handler = get_retry_handler()
 quota_manager = get_quota_manager()
 router = get_router()
+input_validator = get_input_validator()
+dedup_manager = get_dedup_manager()
+webhook_manager = get_webhook_manager()
 
 logger.info("Worker initialized",
     model=vllm_engine.engine_args.model,
@@ -155,6 +161,41 @@ async def handler(job):
         )
         yield result
         return
+    elif job_input.openai_route == "/validation/stats":
+        yield handle_validation_stats_request()
+        return
+    elif job_input.openai_route == "/dedup/stats":
+        yield handle_dedup_stats_request()
+        return
+    elif job_input.openai_route == "/dedup/clear":
+        result = await handle_dedup_clear_request()
+        yield result
+        return
+    elif job_input.openai_route == "/webhooks/stats":
+        yield handle_webhooks_stats_request()
+        return
+    elif job_input.openai_route == "/webhooks/list":
+        yield handle_webhooks_list_request()
+        return
+    elif job_input.openai_route == "/webhooks/subscribe":
+        params = job_input.openai_input or {}
+        result = await handle_webhooks_subscribe_request(
+            url=params.get("url", ""),
+            events=params.get("events", []),
+            secret=params.get("secret"),
+            user_ids=params.get("user_ids"),
+            tiers=params.get("tiers"),
+            models=params.get("models"),
+        )
+        yield result
+        return
+    elif job_input.openai_route == "/webhooks/unsubscribe":
+        params = job_input.openai_input or {}
+        result = await handle_webhooks_unsubscribe_request(
+            subscription_id=params.get("subscription_id", ""),
+        )
+        yield result
+        return
 
     # Authentication check
     api_key = None
@@ -246,6 +287,52 @@ async def handler(job):
 
     if not model_name:
         model_name = os.getenv("OPENAI_SERVED_MODEL_NAME_OVERRIDE", "") or vllm_engine.engine_args.model
+
+    # Validate input
+    validation_result = input_validator.validate(
+        messages=messages,
+        max_tokens=sampling_params.get("max_tokens"),
+        route=job_input.openai_route,
+    )
+
+    if not validation_result.valid:
+        yield create_error_response(
+            "; ".join(validation_result.errors),
+            err_type="ValidationError"
+        ).model_dump()
+        await shutdown_manager.complete_request(job_input.request_id)
+        return
+
+    # Use sanitized input if PII was redacted
+    if validation_result.pii_redacted:
+        messages = validation_result.sanitized_input
+
+    # Check for duplicate request
+    idempotency_key = None
+    if job_input.openai_input:
+        idempotency_key = job_input.openai_input.get("idempotency_key")
+
+    is_duplicate, cached_response, wait_key = await dedup_manager.check_duplicate(
+        request_id=job_input.request_id,
+        idempotency_key=idempotency_key,
+        messages=messages,
+        sampling_params=sampling_params,
+        user_id=user_id,
+    )
+
+    if is_duplicate:
+        if cached_response:
+            logger.info("Duplicate request - returning cached response", request_id=job_input.request_id)
+            yield cached_response
+            await shutdown_manager.complete_request(job_input.request_id)
+            return
+        elif wait_key:
+            # Wait for in-progress request
+            cached_response = await dedup_manager.wait_for_duplicate(wait_key)
+            if cached_response:
+                yield cached_response
+                await shutdown_manager.complete_request(job_input.request_id)
+                return
 
     # Determine priority based on user tier
     priority = PriorityLevel.from_tier(user_tier)
@@ -412,6 +499,37 @@ async def handler(job):
             user_id=user_id,
             organization_id=org_id,
             tokens=total_input_tokens + total_output_tokens,
+        )
+
+        # Store response for deduplication
+        if success and all_batches:
+            final_response = all_batches[-1] if len(all_batches) == 1 else all_batches
+            await dedup_manager.store_response(
+                request_id=job_input.request_id,
+                response=final_response,
+                idempotency_key=idempotency_key,
+                messages=messages,
+                sampling_params=sampling_params,
+                user_id=user_id,
+            )
+        elif not success:
+            await dedup_manager.cancel_in_progress(job_input.request_id, idempotency_key)
+
+        # Emit webhook event
+        event_type = EventType.REQUEST_COMPLETE if success else EventType.REQUEST_ERROR
+        await webhook_manager.emit(
+            event_type=event_type,
+            data={
+                "latency_ms": timer.latency_ms,
+                "input_tokens": total_input_tokens,
+                "output_tokens": total_output_tokens,
+                "error_code": error_code,
+                "error_message": error_message,
+            },
+            user_id=user_id,
+            tier=user_tier,
+            model=model_name,
+            request_id=job_input.request_id,
         )
 
         # Cache successful responses
