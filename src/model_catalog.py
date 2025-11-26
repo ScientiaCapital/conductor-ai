@@ -3,6 +3,8 @@ Model Catalog Module
 
 Unified catalog of all available models across providers.
 Provides OpenAI-compatible /v1/models endpoint.
+
+NOTE: NO OpenAI or Groq. Uses Anthropic, Google Gemini, OpenRouter only.
 """
 
 import os
@@ -91,93 +93,44 @@ class ModelCatalog:
         logging.info(f"[CATALOG] Loaded {len(self._models)} models")
 
     def _load_models(self):
-        """Load all model definitions"""
+        """Load all model definitions (NO OpenAI)"""
 
-        # OpenAI Models
+        # =============================================
+        # Anthropic Models (Primary Provider)
+        # =============================================
+
+        # Claude 4.5 (Latest - Primary for Agents)
         self._add_model(ModelInfo(
-            id="gpt-4o",
-            provider="openai",
-            owned_by="openai",
-            context_window=128000,
-            max_output_tokens=16384,
+            id="claude-opus-4-5-20251101",
+            provider="anthropic",
+            owned_by="anthropic",
+            context_window=200000,
+            max_output_tokens=32000,
             supports_vision=True,
             supports_functions=True,
             supports_json_mode=True,
-            input_price_per_million=2.50,
-            output_price_per_million=10.00,
-            quality_tier="flagship",
-            best_for=["general", "vision", "coding", "analysis"],
-        ))
-
-        self._add_model(ModelInfo(
-            id="gpt-4o-mini",
-            provider="openai",
-            owned_by="openai",
-            context_window=128000,
-            max_output_tokens=16384,
-            supports_vision=True,
-            supports_functions=True,
-            supports_json_mode=True,
-            input_price_per_million=0.15,
-            output_price_per_million=0.60,
-            quality_tier="standard",
-            best_for=["general", "fast", "cost-effective"],
-        ))
-
-        self._add_model(ModelInfo(
-            id="gpt-4-turbo",
-            provider="openai",
-            owned_by="openai",
-            context_window=128000,
-            max_output_tokens=4096,
-            supports_vision=True,
-            supports_functions=True,
-            supports_json_mode=True,
-            input_price_per_million=10.00,
-            output_price_per_million=30.00,
-            quality_tier="premium",
-            best_for=["complex-tasks", "long-context"],
-        ))
-
-        self._add_model(ModelInfo(
-            id="gpt-3.5-turbo",
-            provider="openai",
-            owned_by="openai",
-            context_window=16384,
-            max_output_tokens=4096,
-            supports_functions=True,
-            supports_json_mode=True,
-            input_price_per_million=0.50,
-            output_price_per_million=1.50,
-            quality_tier="budget",
-            best_for=["simple-tasks", "high-volume"],
-        ))
-
-        self._add_model(ModelInfo(
-            id="o1-preview",
-            provider="openai",
-            owned_by="openai",
-            context_window=128000,
-            max_output_tokens=32768,
             input_price_per_million=15.00,
-            output_price_per_million=60.00,
+            output_price_per_million=75.00,
             quality_tier="flagship",
-            best_for=["reasoning", "math", "science", "coding"],
+            best_for=["agents", "complex-reasoning", "research", "coding"],
         ))
 
         self._add_model(ModelInfo(
-            id="o1-mini",
-            provider="openai",
-            owned_by="openai",
-            context_window=128000,
-            max_output_tokens=65536,
+            id="claude-sonnet-4-5-20250929",
+            provider="anthropic",
+            owned_by="anthropic",
+            context_window=200000,
+            max_output_tokens=16000,
+            supports_vision=True,
+            supports_functions=True,
+            supports_json_mode=True,
             input_price_per_million=3.00,
-            output_price_per_million=12.00,
-            quality_tier="premium",
-            best_for=["reasoning", "coding", "math"],
+            output_price_per_million=15.00,
+            quality_tier="flagship",
+            best_for=["agents", "coding", "analysis", "tool-use"],
         ))
 
-        # Anthropic Models
+        # Claude 3.5 (Still excellent)
         self._add_model(ModelInfo(
             id="claude-3-5-sonnet-20241022",
             provider="anthropic",
@@ -185,9 +138,10 @@ class ModelCatalog:
             context_window=200000,
             max_output_tokens=8192,
             supports_vision=True,
+            supports_functions=True,
             input_price_per_million=3.00,
             output_price_per_million=15.00,
-            quality_tier="flagship",
+            quality_tier="premium",
             best_for=["coding", "analysis", "writing", "vision"],
         ))
 
@@ -198,53 +152,171 @@ class ModelCatalog:
             context_window=200000,
             max_output_tokens=8192,
             supports_vision=True,
+            supports_functions=True,
             input_price_per_million=0.25,
             output_price_per_million=1.25,
             quality_tier="standard",
             best_for=["fast", "cost-effective", "simple-tasks"],
         ))
 
+        # =============================================
+        # Google Gemini Models
+        # =============================================
         self._add_model(ModelInfo(
-            id="claude-3-opus-20240229",
-            provider="anthropic",
-            owned_by="anthropic",
-            context_window=200000,
-            max_output_tokens=4096,
+            id="gemini-1.5-pro",
+            provider="google",
+            owned_by="google",
+            context_window=2000000,
+            max_output_tokens=8192,
             supports_vision=True,
-            input_price_per_million=15.00,
-            output_price_per_million=75.00,
+            supports_functions=True,
+            supports_json_mode=True,
+            input_price_per_million=1.25,
+            output_price_per_million=5.00,
             quality_tier="flagship",
-            best_for=["complex-analysis", "research", "nuanced-writing"],
+            best_for=["long-context", "analysis", "vision", "coding"],
         ))
 
-        # Groq Models (Fast inference)
         self._add_model(ModelInfo(
-            id="llama-3.3-70b-versatile",
-            provider="groq",
-            owned_by="meta",
-            context_window=32768,
+            id="gemini-1.5-flash",
+            provider="google",
+            owned_by="google",
+            context_window=1000000,
             max_output_tokens=8192,
-            input_price_per_million=0.59,
-            output_price_per_million=0.79,
+            supports_vision=True,
+            supports_functions=True,
+            supports_json_mode=True,
+            input_price_per_million=0.075,
+            output_price_per_million=0.30,
             quality_tier="standard",
-            best_for=["fast", "general", "open-source"],
+            best_for=["fast", "cost-effective", "general"],
         ))
 
         self._add_model(ModelInfo(
-            id="llama-3.1-8b-instant",
-            provider="groq",
-            owned_by="meta",
-            context_window=8192,
+            id="gemini-1.5-flash-8b",
+            provider="google",
+            owned_by="google",
+            context_window=1000000,
             max_output_tokens=8192,
-            input_price_per_million=0.05,
-            output_price_per_million=0.08,
+            supports_vision=True,
+            supports_functions=True,
+            input_price_per_million=0.0375,
+            output_price_per_million=0.15,
             quality_tier="budget",
             best_for=["ultra-fast", "simple-tasks", "high-volume"],
         ))
 
         self._add_model(ModelInfo(
-            id="mixtral-8x7b-32768",
-            provider="groq",
+            id="gemini-2.0-flash-exp",
+            provider="google",
+            owned_by="google",
+            context_window=1000000,
+            max_output_tokens=8192,
+            supports_vision=True,
+            supports_functions=True,
+            supports_json_mode=True,
+            input_price_per_million=0.0,  # Free during preview
+            output_price_per_million=0.0,
+            quality_tier="premium",
+            best_for=["experimental", "agents", "multimodal"],
+        ))
+
+        # =============================================
+        # OpenRouter Models (Chinese LLMs, Llama, Mistral)
+        # =============================================
+        self._add_model(ModelInfo(
+            id="qwen/qwen-2.5-72b-instruct",
+            provider="openrouter",
+            owned_by="alibaba",
+            context_window=131072,
+            max_output_tokens=8192,
+            supports_functions=True,
+            input_price_per_million=0.35,
+            output_price_per_million=0.40,
+            quality_tier="flagship",
+            best_for=["coding", "reasoning", "multilingual", "chinese"],
+        ))
+
+        self._add_model(ModelInfo(
+            id="qwen/qwen-2.5-coder-32b-instruct",
+            provider="openrouter",
+            owned_by="alibaba",
+            context_window=131072,
+            max_output_tokens=8192,
+            supports_functions=True,
+            input_price_per_million=0.18,
+            output_price_per_million=0.18,
+            quality_tier="premium",
+            best_for=["coding", "debugging", "code-review"],
+        ))
+
+        self._add_model(ModelInfo(
+            id="deepseek/deepseek-chat",
+            provider="openrouter",
+            owned_by="deepseek",
+            context_window=65536,
+            max_output_tokens=8192,
+            supports_functions=True,
+            input_price_per_million=0.14,
+            output_price_per_million=0.28,
+            quality_tier="standard",
+            best_for=["general", "reasoning", "chinese"],
+        ))
+
+        self._add_model(ModelInfo(
+            id="deepseek/deepseek-coder",
+            provider="openrouter",
+            owned_by="deepseek",
+            context_window=65536,
+            max_output_tokens=8192,
+            supports_functions=True,
+            input_price_per_million=0.14,
+            output_price_per_million=0.28,
+            quality_tier="standard",
+            best_for=["coding", "debugging", "code-generation"],
+        ))
+
+        self._add_model(ModelInfo(
+            id="meta-llama/llama-3.1-70b-instruct",
+            provider="openrouter",
+            owned_by="meta",
+            context_window=131072,
+            max_output_tokens=8192,
+            supports_functions=True,
+            input_price_per_million=0.52,
+            output_price_per_million=0.75,
+            quality_tier="premium",
+            best_for=["general", "reasoning", "open-source"],
+        ))
+
+        self._add_model(ModelInfo(
+            id="meta-llama/llama-3.1-8b-instruct",
+            provider="openrouter",
+            owned_by="meta",
+            context_window=131072,
+            max_output_tokens=8192,
+            input_price_per_million=0.055,
+            output_price_per_million=0.055,
+            quality_tier="budget",
+            best_for=["fast", "simple-tasks", "open-source"],
+        ))
+
+        self._add_model(ModelInfo(
+            id="mistralai/mistral-large",
+            provider="openrouter",
+            owned_by="mistral",
+            context_window=128000,
+            max_output_tokens=8192,
+            supports_functions=True,
+            input_price_per_million=2.00,
+            output_price_per_million=6.00,
+            quality_tier="flagship",
+            best_for=["reasoning", "multilingual", "coding"],
+        ))
+
+        self._add_model(ModelInfo(
+            id="mistralai/mixtral-8x7b-instruct",
+            provider="openrouter",
             owned_by="mistral",
             context_window=32768,
             max_output_tokens=8192,
@@ -252,18 +324,6 @@ class ModelCatalog:
             output_price_per_million=0.24,
             quality_tier="standard",
             best_for=["fast", "multilingual", "coding"],
-        ))
-
-        self._add_model(ModelInfo(
-            id="gemma2-9b-it",
-            provider="groq",
-            owned_by="google",
-            context_window=8192,
-            max_output_tokens=8192,
-            input_price_per_million=0.20,
-            output_price_per_million=0.20,
-            quality_tier="budget",
-            best_for=["fast", "instruction-following"],
         ))
 
     def _add_model(self, model: ModelInfo):

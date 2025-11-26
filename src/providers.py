@@ -2,7 +2,9 @@
 Provider Adapter Framework
 
 Abstract interface for multiple LLM providers.
-Enables unified API across OpenAI, Anthropic, Google, Mistral, and local vLLM.
+Enables unified API across Anthropic, Google Gemini, OpenRouter, and local vLLM.
+
+NOTE: OpenAI is NOT supported in this project. Use Anthropic Claude, Google Gemini, or OpenRouter.
 """
 
 import os
@@ -21,12 +23,10 @@ logging.basicConfig(level=logging.INFO)
 
 
 class ProviderType(Enum):
-    """Supported provider types"""
-    OPENAI = "openai"
+    """Supported provider types - NO OPENAI, NO GROQ"""
     ANTHROPIC = "anthropic"
     GOOGLE = "google"
-    MISTRAL = "mistral"
-    GROQ = "groq"
+    OPENROUTER = "openrouter"
     LOCAL = "local"  # Local vLLM
 
 
@@ -167,121 +167,6 @@ class ProviderAdapter(ABC):
             "total_errors": self.total_errors,
             "avg_latency_ms": round(self.total_latency_ms / self.total_requests, 2) if self.total_requests else 0,
         }
-
-
-class OpenAIAdapter(ProviderAdapter):
-    """Adapter for OpenAI API"""
-
-    MODELS = [
-        "gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4",
-        "gpt-3.5-turbo", "gpt-3.5-turbo-16k",
-        "o1-preview", "o1-mini",
-    ]
-
-    def __init__(self, config: ProviderConfig):
-        super().__init__(config)
-        self.base_url = config.base_url or "https://api.openai.com/v1"
-        self.api_key = config.api_key or os.getenv("OPENAI_API_KEY")
-
-    async def complete(
-        self,
-        messages: List[Dict[str, str]],
-        model: str,
-        temperature: float = 1.0,
-        max_tokens: Optional[int] = None,
-        stream: bool = False,
-        **kwargs
-    ) -> ProviderResponse:
-        start_time = time.time()
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
-        payload = {
-            "model": model,
-            "messages": messages,
-            "temperature": temperature,
-            "stream": False,
-        }
-        if max_tokens:
-            payload["max_tokens"] = max_tokens
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.base_url}/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=self.config.timeout_seconds)
-            ) as resp:
-                data = await resp.json()
-
-                if resp.status >= 400:
-                    self.total_errors += 1
-                    raise ProviderError(f"OpenAI error: {data.get('error', {}).get('message', 'Unknown')}")
-
-        latency_ms = (time.time() - start_time) * 1000
-
-        usage = data.get("usage", {})
-        input_tokens = usage.get("prompt_tokens", 0)
-        output_tokens = usage.get("completion_tokens", 0)
-
-        response = ProviderResponse(
-            content=data["choices"][0]["message"]["content"],
-            model=model,
-            provider="openai",
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            total_tokens=input_tokens + output_tokens,
-            cost_cents=self.calculate_cost(input_tokens, output_tokens),
-            finish_reason=data["choices"][0].get("finish_reason"),
-            latency_ms=latency_ms,
-            raw_response=data,
-        )
-
-        self.record_request(response)
-        return response
-
-    async def stream(
-        self,
-        messages: List[Dict[str, str]],
-        model: str,
-        temperature: float = 1.0,
-        max_tokens: Optional[int] = None,
-        **kwargs
-    ) -> AsyncGenerator[str, None]:
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
-        payload = {
-            "model": model,
-            "messages": messages,
-            "temperature": temperature,
-            "stream": True,
-        }
-        if max_tokens:
-            payload["max_tokens"] = max_tokens
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.base_url}/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=self.config.timeout_seconds)
-            ) as resp:
-                async for line in resp.content:
-                    line = line.decode().strip()
-                    if line.startswith("data: ") and line != "data: [DONE]":
-                        data = json.loads(line[6:])
-                        content = data["choices"][0].get("delta", {}).get("content", "")
-                        if content:
-                            yield content
-
-    def list_models(self) -> List[str]:
-        return self.MODELS
 
 
 class AnthropicAdapter(ProviderAdapter):
@@ -425,18 +310,18 @@ class AnthropicAdapter(ProviderAdapter):
         return self.MODELS
 
 
-class GroqAdapter(ProviderAdapter):
-    """Adapter for Groq API (fast inference)"""
+class GoogleAdapter(ProviderAdapter):
+    """Adapter for Google Gemini API"""
 
     MODELS = [
-        "llama-3.3-70b-versatile", "llama-3.1-8b-instant",
-        "mixtral-8x7b-32768", "gemma2-9b-it",
+        "gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.5-flash-8b",
+        "gemini-2.0-flash-exp", "gemini-1.0-pro",
     ]
 
     def __init__(self, config: ProviderConfig):
         super().__init__(config)
-        self.base_url = config.base_url or "https://api.groq.com/openai/v1"
-        self.api_key = config.api_key or os.getenv("GROQ_API_KEY")
+        self.base_url = config.base_url or "https://generativelanguage.googleapis.com/v1beta"
+        self.api_key = config.api_key or os.getenv("GOOGLE_API_KEY")
 
     async def complete(
         self,
@@ -447,12 +332,189 @@ class GroqAdapter(ProviderAdapter):
         stream: bool = False,
         **kwargs
     ) -> ProviderResponse:
-        # Groq uses OpenAI-compatible API
+        start_time = time.time()
+
+        # Convert messages to Gemini format
+        gemini_contents = []
+        system_instruction = None
+
+        for msg in messages:
+            if msg["role"] == "system":
+                system_instruction = msg["content"]
+            elif msg["role"] == "user":
+                gemini_contents.append({
+                    "role": "user",
+                    "parts": [{"text": msg["content"]}]
+                })
+            elif msg["role"] == "assistant":
+                gemini_contents.append({
+                    "role": "model",
+                    "parts": [{"text": msg["content"]}]
+                })
+
+        payload = {
+            "contents": gemini_contents,
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": max_tokens or 4096,
+            }
+        }
+
+        if system_instruction:
+            payload["systemInstruction"] = {"parts": [{"text": system_instruction}]}
+
+        url = f"{self.base_url}/models/{model}:generateContent?key={self.api_key}"
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url,
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=self.config.timeout_seconds)
+            ) as resp:
+                data = await resp.json()
+
+                if resp.status >= 400:
+                    self.total_errors += 1
+                    error_msg = data.get("error", {}).get("message", "Unknown error")
+                    raise ProviderError(f"Google Gemini error: {error_msg}")
+
+        latency_ms = (time.time() - start_time) * 1000
+
+        # Parse response
+        candidate = data.get("candidates", [{}])[0]
+        content_parts = candidate.get("content", {}).get("parts", [])
+        content = "".join(part.get("text", "") for part in content_parts)
+
+        # Get usage metadata
+        usage_metadata = data.get("usageMetadata", {})
+        input_tokens = usage_metadata.get("promptTokenCount", 0)
+        output_tokens = usage_metadata.get("candidatesTokenCount", 0)
+
+        response = ProviderResponse(
+            content=content,
+            model=model,
+            provider="google",
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=input_tokens + output_tokens,
+            cost_cents=self.calculate_cost(input_tokens, output_tokens),
+            finish_reason=candidate.get("finishReason", "STOP"),
+            latency_ms=latency_ms,
+            raw_response=data,
+        )
+
+        self.record_request(response)
+        return response
+
+    async def stream(
+        self,
+        messages: List[Dict[str, str]],
+        model: str,
+        temperature: float = 1.0,
+        max_tokens: Optional[int] = None,
+        **kwargs
+    ) -> AsyncGenerator[str, None]:
+        # Convert messages to Gemini format
+        gemini_contents = []
+        system_instruction = None
+
+        for msg in messages:
+            if msg["role"] == "system":
+                system_instruction = msg["content"]
+            elif msg["role"] == "user":
+                gemini_contents.append({
+                    "role": "user",
+                    "parts": [{"text": msg["content"]}]
+                })
+            elif msg["role"] == "assistant":
+                gemini_contents.append({
+                    "role": "model",
+                    "parts": [{"text": msg["content"]}]
+                })
+
+        payload = {
+            "contents": gemini_contents,
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": max_tokens or 4096,
+            }
+        }
+
+        if system_instruction:
+            payload["systemInstruction"] = {"parts": [{"text": system_instruction}]}
+
+        url = f"{self.base_url}/models/{model}:streamGenerateContent?key={self.api_key}&alt=sse"
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload) as resp:
+                async for line in resp.content:
+                    line = line.decode().strip()
+                    if line.startswith("data: "):
+                        try:
+                            data = json.loads(line[6:])
+                            parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                            for part in parts:
+                                text = part.get("text", "")
+                                if text:
+                                    yield text
+                        except json.JSONDecodeError:
+                            continue
+
+    def list_models(self) -> List[str]:
+        return self.MODELS
+
+
+class OpenRouterAdapter(ProviderAdapter):
+    """
+    Adapter for OpenRouter API.
+
+    OpenRouter provides access to many models including:
+    - Chinese LLMs (Qwen, DeepSeek)
+    - Meta Llama models
+    - Mistral models
+    - And many more
+
+    Uses OpenAI-compatible API format.
+    """
+
+    MODELS = [
+        # Chinese LLMs
+        "qwen/qwen-2.5-72b-instruct",
+        "qwen/qwen-2.5-coder-32b-instruct",
+        "deepseek/deepseek-chat",
+        "deepseek/deepseek-coder",
+        # Meta Llama
+        "meta-llama/llama-3.1-70b-instruct",
+        "meta-llama/llama-3.1-8b-instruct",
+        "meta-llama/llama-3.2-90b-vision-instruct",
+        # Mistral
+        "mistralai/mixtral-8x7b-instruct",
+        "mistralai/mistral-large",
+        # Google (via OpenRouter)
+        "google/gemma-2-27b-it",
+    ]
+
+    def __init__(self, config: ProviderConfig):
+        super().__init__(config)
+        self.base_url = config.base_url or "https://openrouter.ai/api/v1"
+        self.api_key = config.api_key or os.getenv("OPENROUTER_API_KEY")
+
+    async def complete(
+        self,
+        messages: List[Dict[str, str]],
+        model: str,
+        temperature: float = 1.0,
+        max_tokens: Optional[int] = None,
+        stream: bool = False,
+        **kwargs
+    ) -> ProviderResponse:
         start_time = time.time()
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
+            "HTTP-Referer": "https://conductor-ai.com",
+            "X-Title": "Conductor AI",
         }
 
         payload = {
@@ -474,7 +536,8 @@ class GroqAdapter(ProviderAdapter):
 
                 if resp.status >= 400:
                     self.total_errors += 1
-                    raise ProviderError(f"Groq error: {data.get('error', {}).get('message', 'Unknown')}")
+                    error_msg = data.get("error", {}).get("message", "Unknown error")
+                    raise ProviderError(f"OpenRouter error: {error_msg}")
 
         latency_ms = (time.time() - start_time) * 1000
 
@@ -485,7 +548,7 @@ class GroqAdapter(ProviderAdapter):
         response = ProviderResponse(
             content=data["choices"][0]["message"]["content"],
             model=model,
-            provider="groq",
+            provider="openrouter",
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             total_tokens=input_tokens + output_tokens,
@@ -498,32 +561,47 @@ class GroqAdapter(ProviderAdapter):
         self.record_request(response)
         return response
 
-    async def stream(self, messages, model, **kwargs) -> AsyncGenerator[str, None]:
-        # Similar to OpenAI streaming
+    async def stream(
+        self,
+        messages: List[Dict[str, str]],
+        model: str,
+        temperature: float = 1.0,
+        max_tokens: Optional[int] = None,
+        **kwargs
+    ) -> AsyncGenerator[str, None]:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
+            "HTTP-Referer": "https://conductor-ai.com",
+            "X-Title": "Conductor AI",
         }
 
         payload = {
             "model": model,
             "messages": messages,
+            "temperature": temperature,
             "stream": True,
         }
+        if max_tokens:
+            payload["max_tokens"] = max_tokens
 
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"{self.base_url}/chat/completions",
                 headers=headers,
                 json=payload,
+                timeout=aiohttp.ClientTimeout(total=self.config.timeout_seconds)
             ) as resp:
                 async for line in resp.content:
                     line = line.decode().strip()
                     if line.startswith("data: ") and line != "data: [DONE]":
-                        data = json.loads(line[6:])
-                        content = data["choices"][0].get("delta", {}).get("content", "")
-                        if content:
-                            yield content
+                        try:
+                            data = json.loads(line[6:])
+                            content = data["choices"][0].get("delta", {}).get("content", "")
+                            if content:
+                                yield content
+                        except (json.JSONDecodeError, KeyError, IndexError):
+                            continue
 
     def list_models(self) -> List[str]:
         return self.MODELS
@@ -538,11 +616,10 @@ class ProviderManager:
     """
     Manages multiple LLM providers.
 
-    Configure via environment variables:
-    - PROVIDERS_CONFIG: JSON config for providers (default: auto-detect from API keys)
-    - OPENAI_API_KEY: OpenAI API key
-    - ANTHROPIC_API_KEY: Anthropic API key
-    - GROQ_API_KEY: Groq API key
+    Configure via environment variables (NO OPENAI, NO GROQ):
+    - ANTHROPIC_API_KEY: Anthropic Claude API key
+    - GOOGLE_API_KEY: Google Gemini API key
+    - OPENROUTER_API_KEY: OpenRouter API key
     """
 
     def __init__(self):
@@ -556,40 +633,40 @@ class ProviderManager:
         logging.info(f"[PROVIDERS] Initialized {len(self._providers)} providers")
 
     def _auto_configure(self):
-        """Auto-configure providers from environment variables"""
+        """Auto-configure providers from environment variables (NO OPENAI)"""
 
-        # OpenAI
-        if os.getenv("OPENAI_API_KEY"):
-            config = ProviderConfig(
-                name="openai",
-                provider_type=ProviderType.OPENAI,
-                api_key=os.getenv("OPENAI_API_KEY"),
-                input_cost_per_1k=0.5,  # $0.50/1M = $0.0005/1K
-                output_cost_per_1k=1.5,
-            )
-            self.register_provider(OpenAIAdapter(config))
-
-        # Anthropic
+        # Anthropic (Claude)
         if os.getenv("ANTHROPIC_API_KEY"):
             config = ProviderConfig(
                 name="anthropic",
                 provider_type=ProviderType.ANTHROPIC,
                 api_key=os.getenv("ANTHROPIC_API_KEY"),
-                input_cost_per_1k=0.3,
+                input_cost_per_1k=0.3,   # Claude 3.5 Sonnet pricing
                 output_cost_per_1k=1.5,
             )
             self.register_provider(AnthropicAdapter(config))
 
-        # Groq
-        if os.getenv("GROQ_API_KEY"):
+        # Google (Gemini)
+        if os.getenv("GOOGLE_API_KEY"):
             config = ProviderConfig(
-                name="groq",
-                provider_type=ProviderType.GROQ,
-                api_key=os.getenv("GROQ_API_KEY"),
-                input_cost_per_1k=0.05,
-                output_cost_per_1k=0.08,
+                name="google",
+                provider_type=ProviderType.GOOGLE,
+                api_key=os.getenv("GOOGLE_API_KEY"),
+                input_cost_per_1k=0.075,   # Gemini 1.5 Flash pricing
+                output_cost_per_1k=0.30,
             )
-            self.register_provider(GroqAdapter(config))
+            self.register_provider(GoogleAdapter(config))
+
+        # OpenRouter (Chinese LLMs, Llama, Mistral, etc.)
+        if os.getenv("OPENROUTER_API_KEY"):
+            config = ProviderConfig(
+                name="openrouter",
+                provider_type=ProviderType.OPENROUTER,
+                api_key=os.getenv("OPENROUTER_API_KEY"),
+                input_cost_per_1k=0.1,    # Varies by model
+                output_cost_per_1k=0.3,
+            )
+            self.register_provider(OpenRouterAdapter(config))
 
     def register_provider(self, adapter: ProviderAdapter):
         """Register a provider adapter"""

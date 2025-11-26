@@ -3,6 +3,8 @@ Cost Optimization Engine
 
 Automatically selects the best model for cost, latency, or quality.
 Tracks spending and provides optimization recommendations.
+
+NOTE: NO OpenAI or Groq. Uses Anthropic, Google Gemini, OpenRouter only.
 """
 
 import os
@@ -118,77 +120,118 @@ class CostOptimizer:
             logging.info(f"[OPTIMIZER] Cost optimizer enabled (strategy={self.default_strategy.value})")
 
     def _load_model_capabilities(self):
-        """Load model capabilities database"""
-        # OpenAI models
-        self._models["gpt-4o"] = ModelCapability(
-            model_id="gpt-4o", provider="openai",
-            max_context=128000, supports_vision=True, supports_functions=True,
-            quality_score=95, reasoning_score=95, coding_score=90,
-            input_cost=0.25, output_cost=1.0, avg_latency_ms=800
+        """Load model capabilities database (NO OpenAI or Groq)"""
+
+        # =============================================
+        # Anthropic Models (Primary Provider)
+        # =============================================
+
+        # Claude 4.5 (Latest - Primary for Agents)
+        self._models["claude-opus-4-5-20251101"] = ModelCapability(
+            model_id="claude-opus-4-5-20251101", provider="anthropic",
+            max_context=200000, supports_vision=True, supports_functions=True,
+            quality_score=99, reasoning_score=99, coding_score=98,
+            input_cost=1.5, output_cost=7.5, avg_latency_ms=2500
         )
-        self._models["gpt-4o-mini"] = ModelCapability(
-            model_id="gpt-4o-mini", provider="openai",
-            max_context=128000, supports_vision=True, supports_functions=True,
-            quality_score=85, reasoning_score=80, coding_score=80,
-            input_cost=0.015, output_cost=0.06, avg_latency_ms=500
-        )
-        self._models["gpt-3.5-turbo"] = ModelCapability(
-            model_id="gpt-3.5-turbo", provider="openai",
-            max_context=16384, supports_functions=True,
-            quality_score=70, reasoning_score=65, coding_score=70,
-            input_cost=0.05, output_cost=0.15, avg_latency_ms=400
-        )
-        self._models["o1-preview"] = ModelCapability(
-            model_id="o1-preview", provider="openai",
-            max_context=128000,
-            quality_score=98, reasoning_score=99, coding_score=95,
-            input_cost=1.5, output_cost=6.0, avg_latency_ms=3000
-        )
-        self._models["o1-mini"] = ModelCapability(
-            model_id="o1-mini", provider="openai",
-            max_context=128000,
-            quality_score=90, reasoning_score=92, coding_score=88,
-            input_cost=0.3, output_cost=1.2, avg_latency_ms=1500
+        self._models["claude-sonnet-4-5-20250929"] = ModelCapability(
+            model_id="claude-sonnet-4-5-20250929", provider="anthropic",
+            max_context=200000, supports_vision=True, supports_functions=True,
+            quality_score=97, reasoning_score=97, coding_score=97,
+            input_cost=0.3, output_cost=1.5, avg_latency_ms=900
         )
 
-        # Anthropic models
+        # Claude 3.5 (Still excellent)
         self._models["claude-3-5-sonnet-20241022"] = ModelCapability(
             model_id="claude-3-5-sonnet-20241022", provider="anthropic",
-            max_context=200000, supports_vision=True,
+            max_context=200000, supports_vision=True, supports_functions=True,
             quality_score=95, reasoning_score=95, coding_score=95,
             input_cost=0.3, output_cost=1.5, avg_latency_ms=900
         )
         self._models["claude-3-5-haiku-20241022"] = ModelCapability(
             model_id="claude-3-5-haiku-20241022", provider="anthropic",
-            max_context=200000, supports_vision=True,
+            max_context=200000, supports_vision=True, supports_functions=True,
             quality_score=80, reasoning_score=75, coding_score=80,
             input_cost=0.025, output_cost=0.125, avg_latency_ms=300
         )
-        self._models["claude-3-opus-20240229"] = ModelCapability(
-            model_id="claude-3-opus-20240229", provider="anthropic",
-            max_context=200000, supports_vision=True,
-            quality_score=98, reasoning_score=98, coding_score=95,
-            input_cost=1.5, output_cost=7.5, avg_latency_ms=2000
+
+        # =============================================
+        # Google Gemini Models
+        # =============================================
+        self._models["gemini-1.5-pro"] = ModelCapability(
+            model_id="gemini-1.5-pro", provider="google",
+            max_context=2000000, supports_vision=True, supports_functions=True,
+            quality_score=92, reasoning_score=90, coding_score=88,
+            input_cost=0.125, output_cost=0.5, avg_latency_ms=1000
+        )
+        self._models["gemini-1.5-flash"] = ModelCapability(
+            model_id="gemini-1.5-flash", provider="google",
+            max_context=1000000, supports_vision=True, supports_functions=True,
+            quality_score=82, reasoning_score=78, coding_score=80,
+            input_cost=0.0075, output_cost=0.03, avg_latency_ms=400
+        )
+        self._models["gemini-1.5-flash-8b"] = ModelCapability(
+            model_id="gemini-1.5-flash-8b", provider="google",
+            max_context=1000000, supports_vision=True, supports_functions=True,
+            quality_score=70, reasoning_score=65, coding_score=70,
+            input_cost=0.00375, output_cost=0.015, avg_latency_ms=200
+        )
+        self._models["gemini-2.0-flash-exp"] = ModelCapability(
+            model_id="gemini-2.0-flash-exp", provider="google",
+            max_context=1000000, supports_vision=True, supports_functions=True,
+            quality_score=88, reasoning_score=85, coding_score=85,
+            input_cost=0.0, output_cost=0.0, avg_latency_ms=350  # Free preview
         )
 
-        # Groq models (fast + cheap)
-        self._models["llama-3.3-70b-versatile"] = ModelCapability(
-            model_id="llama-3.3-70b-versatile", provider="groq",
-            max_context=32768,
+        # =============================================
+        # OpenRouter Models (Chinese LLMs, Llama, Mistral)
+        # =============================================
+        self._models["qwen/qwen-2.5-72b-instruct"] = ModelCapability(
+            model_id="qwen/qwen-2.5-72b-instruct", provider="openrouter",
+            max_context=131072, supports_functions=True,
+            quality_score=90, reasoning_score=88, coding_score=92,
+            input_cost=0.035, output_cost=0.04, avg_latency_ms=800
+        )
+        self._models["qwen/qwen-2.5-coder-32b-instruct"] = ModelCapability(
+            model_id="qwen/qwen-2.5-coder-32b-instruct", provider="openrouter",
+            max_context=131072, supports_functions=True,
+            quality_score=85, reasoning_score=80, coding_score=95,
+            input_cost=0.018, output_cost=0.018, avg_latency_ms=600
+        )
+        self._models["deepseek/deepseek-chat"] = ModelCapability(
+            model_id="deepseek/deepseek-chat", provider="openrouter",
+            max_context=65536, supports_functions=True,
+            quality_score=82, reasoning_score=85, coding_score=80,
+            input_cost=0.014, output_cost=0.028, avg_latency_ms=700
+        )
+        self._models["deepseek/deepseek-coder"] = ModelCapability(
+            model_id="deepseek/deepseek-coder", provider="openrouter",
+            max_context=65536, supports_functions=True,
+            quality_score=80, reasoning_score=75, coding_score=90,
+            input_cost=0.014, output_cost=0.028, avg_latency_ms=700
+        )
+        self._models["meta-llama/llama-3.1-70b-instruct"] = ModelCapability(
+            model_id="meta-llama/llama-3.1-70b-instruct", provider="openrouter",
+            max_context=131072, supports_functions=True,
             quality_score=85, reasoning_score=82, coding_score=80,
-            input_cost=0.059, output_cost=0.079, avg_latency_ms=200
+            input_cost=0.052, output_cost=0.075, avg_latency_ms=500
         )
-        self._models["llama-3.1-8b-instant"] = ModelCapability(
-            model_id="llama-3.1-8b-instant", provider="groq",
-            max_context=8192,
-            quality_score=65, reasoning_score=60, coding_score=65,
-            input_cost=0.005, output_cost=0.008, avg_latency_ms=100
+        self._models["meta-llama/llama-3.1-8b-instruct"] = ModelCapability(
+            model_id="meta-llama/llama-3.1-8b-instruct", provider="openrouter",
+            max_context=131072,
+            quality_score=68, reasoning_score=62, coding_score=65,
+            input_cost=0.0055, output_cost=0.0055, avg_latency_ms=200
         )
-        self._models["mixtral-8x7b-32768"] = ModelCapability(
-            model_id="mixtral-8x7b-32768", provider="groq",
+        self._models["mistralai/mistral-large"] = ModelCapability(
+            model_id="mistralai/mistral-large", provider="openrouter",
+            max_context=128000, supports_functions=True,
+            quality_score=88, reasoning_score=85, coding_score=85,
+            input_cost=0.2, output_cost=0.6, avg_latency_ms=900
+        )
+        self._models["mistralai/mixtral-8x7b-instruct"] = ModelCapability(
+            model_id="mistralai/mixtral-8x7b-instruct", provider="openrouter",
             max_context=32768,
             quality_score=75, reasoning_score=72, coding_score=75,
-            input_cost=0.024, output_cost=0.024, avg_latency_ms=150
+            input_cost=0.024, output_cost=0.024, avg_latency_ms=300
         )
 
     def estimate_complexity(
@@ -246,13 +289,13 @@ class CostOptimizer:
             OptimizationResult with recommendation
         """
         if not self.enabled:
-            # Return a default
+            # Return a default (NO OpenAI - use Haiku)
             return OptimizationResult(
-                recommended_model="gpt-4o-mini",
-                provider="openai",
+                recommended_model="claude-3-5-haiku-20241022",
+                provider="anthropic",
                 reason="optimization_disabled",
                 estimated_cost_cents=0,
-                estimated_latency_ms=500
+                estimated_latency_ms=300
             )
 
         strategy = strategy or self.default_strategy
@@ -285,13 +328,13 @@ class CostOptimizer:
             eligible.append(cap)
 
         if not eligible:
-            # Fallback to gpt-4o-mini
+            # Fallback to Haiku (NO OpenAI)
             return OptimizationResult(
-                recommended_model="gpt-4o-mini",
-                provider="openai",
+                recommended_model="claude-3-5-haiku-20241022",
+                provider="anthropic",
                 reason="no_eligible_models",
                 estimated_cost_cents=0,
-                estimated_latency_ms=500
+                estimated_latency_ms=300
             )
 
         # Score models based on strategy
