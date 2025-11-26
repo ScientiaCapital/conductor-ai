@@ -28,9 +28,9 @@ class StateManager:
     """Manages agent session state across Redis (hot) and Supabase (cold) storage.
 
     Attributes:
-        redis: Async Redis client for hot state
-        supabase: Supabase client for cold persistence
-        session_ttl: TTL in seconds for Redis session keys (default: 3600 = 1 hour)
+        _redis: Async Redis client for hot state
+        _supabase: Supabase client for cold persistence
+        _session_ttl: TTL in seconds for Redis session keys (default: 3600 = 1 hour)
     """
 
     def __init__(
@@ -48,30 +48,35 @@ class StateManager:
             supabase_key: Supabase service key (default: from SUPABASE_SERVICE_KEY env var)
             session_ttl: TTL in seconds for Redis entries (default: 3600)
         """
-        # Redis setup
-        redis_url = redis_url or os.getenv("REDIS_URL", "redis://localhost:6379")
-        self.redis = aioredis.from_url(
-            redis_url,
+        # Redis setup - require explicit URL or env var
+        self._redis_url = redis_url or os.getenv("REDIS_URL")
+        if not self._redis_url:
+            raise ValueError(
+                "Redis URL must be provided or set via REDIS_URL environment variable"
+            )
+
+        self._redis = aioredis.from_url(
+            self._redis_url,
             encoding="utf-8",
             decode_responses=True
         )
 
         # Supabase setup
-        supabase_url = supabase_url or os.getenv("SUPABASE_URL")
+        self._supabase_url = supabase_url or os.getenv("SUPABASE_URL")
         supabase_key = supabase_key or os.getenv("SUPABASE_SERVICE_KEY")
 
-        if not supabase_url or not supabase_key:
+        if not self._supabase_url or not supabase_key:
             raise ValueError(
                 "SUPABASE_URL and SUPABASE_SERVICE_KEY must be provided "
                 "or set as environment variables"
             )
 
-        self.supabase: Client = create_client(supabase_url, supabase_key)
-        self.session_ttl = session_ttl
+        self._supabase: Client = create_client(self._supabase_url, supabase_key)
+        self._session_ttl = session_ttl
 
     async def close(self) -> None:
         """Close Redis connection."""
-        await self.redis.close()
+        await self._redis.aclose()
 
     def _session_key(self, session_id: str) -> str:
         """Generate Redis key for session data."""
@@ -103,9 +108,9 @@ class StateManager:
         session_data = session.model_dump_json()
         session_key = self._session_key(session.session_id)
 
-        await self.redis.setex(
+        await self._redis.setex(
             session_key,
-            self.session_ttl,
+            self._session_ttl,
             session_data
         )
 
@@ -126,14 +131,14 @@ class StateManager:
         """
         # Try Redis first (hot state)
         session_key = self._session_key(session_id)
-        session_data = await self.redis.get(session_key)
+        session_data = await self._redis.get(session_key)
 
         if session_data:
             return AgentSession.model_validate_json(session_data)
 
         # Fallback to Supabase (cold storage)
         try:
-            response = self.supabase.table("agent_sessions").select("*").eq(
+            response = self._supabase.table("agent_sessions").select("*").eq(
                 "session_id", session_id
             ).single().execute()
 
@@ -143,7 +148,7 @@ class StateManager:
                 session_dict = response.data
 
                 # Fetch steps from agent_steps table
-                steps_response = self.supabase.table("agent_steps").select("*").eq(
+                steps_response = self._supabase.table("agent_steps").select("*").eq(
                     "session_id", session_id
                 ).order("created_at").execute()
 
@@ -182,9 +187,9 @@ class StateManager:
         session_key = self._session_key(session.session_id)
 
         # Update with fresh TTL
-        await self.redis.setex(
+        await self._redis.setex(
             session_key,
-            self.session_ttl,
+            self._session_ttl,
             session_data
         )
 
@@ -202,10 +207,10 @@ class StateManager:
         step_data = step.model_dump_json()
 
         # Append to Redis list
-        await self.redis.rpush(steps_key, step_data)
+        await self._redis.rpush(steps_key, step_data)
 
         # Set TTL on steps list (match session TTL)
-        await self.redis.expire(steps_key, self.session_ttl)
+        await self._redis.expire(steps_key, self._session_ttl)
 
         # Update step count in session
         session = await self.get_session(session_id)
@@ -226,7 +231,7 @@ class StateManager:
             redis.RedisError: If Redis operations fail
         """
         steps_key = self._steps_key(session_id)
-        steps_data = await self.redis.lrange(steps_key, 0, -1)
+        steps_data = await self._redis.lrange(steps_key, 0, -1)
 
         steps = []
         for step_json in steps_data:
@@ -281,7 +286,7 @@ class StateManager:
         session_dict = session.model_dump(exclude={"steps"})
 
         # Insert or update session in Supabase
-        self.supabase.table("agent_sessions").upsert(session_dict).execute()
+        self._supabase.table("agent_sessions").upsert(session_dict).execute()
 
         # Insert steps into agent_steps table
         if session.steps:
@@ -291,10 +296,10 @@ class StateManager:
                 step_dict["session_id"] = session.session_id
                 steps_data.append(step_dict)
 
-            self.supabase.table("agent_steps").upsert(steps_data).execute()
+            self._supabase.table("agent_steps").upsert(steps_data).execute()
 
         # Delete from Redis after successful persist
         session_key = self._session_key(session.session_id)
         steps_key = self._steps_key(session.session_id)
 
-        await self.redis.delete(session_key, steps_key)
+        await self._redis.delete(session_key, steps_key)
