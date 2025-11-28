@@ -222,8 +222,91 @@ class ModelCatalog:
         ))
 
         # =============================================
-        # OpenRouter Models (Chinese LLMs, Llama, Mistral)
+        # OpenRouter Models - Chinese LLMs (2025 BEST-IN-CLASS)
         # =============================================
+
+        # ----- DeepSeek Models (Best Value + Reasoning) -----
+
+        # DeepSeek V3.1 - 671B MoE (37B active) - BEST VALUE FLAGSHIP
+        # 97.3% MATH-500, 79.8% AIME 2024 - Trained for $5.6M
+        self._add_model(ModelInfo(
+            id="deepseek/deepseek-chat-v3",
+            provider="openrouter",
+            owned_by="deepseek",
+            context_window=131072,
+            max_output_tokens=8192,
+            supports_functions=True,
+            supports_json_mode=True,
+            input_price_per_million=0.20,
+            output_price_per_million=0.80,
+            quality_tier="flagship",
+            best_for=["reasoning", "math", "coding", "agents", "chinese", "cost-effective"],
+        ))
+
+        # DeepSeek R1 (Full) - o1-COMPETITOR for deep reasoning
+        # Open-sourced reasoning tokens, 671B params
+        self._add_model(ModelInfo(
+            id="deepseek/deepseek-r1",
+            provider="openrouter",
+            owned_by="deepseek",
+            context_window=164000,
+            max_output_tokens=32000,
+            supports_functions=True,
+            supports_json_mode=True,
+            input_price_per_million=3.00,
+            output_price_per_million=7.00,
+            quality_tier="flagship",
+            best_for=["deep-reasoning", "math", "complex-analysis", "research", "chain-of-thought"],
+        ))
+
+        # DeepSeek R1 Distilled (Qwen3-8B) - Budget reasoning
+        self._add_model(ModelInfo(
+            id="deepseek/deepseek-r1-distill-qwen-8b",
+            provider="openrouter",
+            owned_by="deepseek",
+            context_window=131072,
+            max_output_tokens=8192,
+            supports_functions=True,
+            input_price_per_million=0.02,
+            output_price_per_million=0.10,
+            quality_tier="budget",
+            best_for=["reasoning", "fast", "cost-effective", "simple-tasks"],
+        ))
+
+        # DeepSeek Coder V2 - Coding specialist
+        self._add_model(ModelInfo(
+            id="deepseek/deepseek-coder",
+            provider="openrouter",
+            owned_by="deepseek",
+            context_window=128000,
+            max_output_tokens=8192,
+            supports_functions=True,
+            input_price_per_million=0.14,
+            output_price_per_million=0.28,
+            quality_tier="premium",
+            best_for=["coding", "debugging", "code-generation", "code-review"],
+        ))
+
+        # ----- Qwen3 Models (Alibaba - Hybrid Thinking) -----
+
+        # Qwen3-235B-A22B - 235B MoE (22B active) - Dual mode
+        # Supports "Thinking Mode" (complex) + "Non-Thinking Mode" (fast)
+        # Trained on 36T tokens, 119 languages
+        self._add_model(ModelInfo(
+            id="qwen/qwen3-235b-a22b",
+            provider="openrouter",
+            owned_by="alibaba",
+            context_window=131072,
+            max_output_tokens=8192,
+            supports_functions=True,
+            supports_json_mode=True,
+            input_price_per_million=0.30,
+            output_price_per_million=1.20,
+            quality_tier="flagship",
+            best_for=["reasoning", "coding", "multilingual", "chinese", "hybrid-thinking"],
+        ))
+
+        # Qwen 2.5-Max - Arena-Hard leader (89.4)
         self._add_model(ModelInfo(
             id="qwen/qwen-2.5-72b-instruct",
             provider="openrouter",
@@ -231,12 +314,14 @@ class ModelCatalog:
             context_window=131072,
             max_output_tokens=8192,
             supports_functions=True,
+            supports_json_mode=True,
             input_price_per_million=0.35,
             output_price_per_million=0.40,
             quality_tier="flagship",
-            best_for=["coding", "reasoning", "multilingual", "chinese"],
+            best_for=["coding", "reasoning", "multilingual", "chinese", "tool-use"],
         ))
 
+        # Qwen 2.5 Coder 32B - 92.7% HumanEval
         self._add_model(ModelInfo(
             id="qwen/qwen-2.5-coder-32b-instruct",
             provider="openrouter",
@@ -247,33 +332,55 @@ class ModelCatalog:
             input_price_per_million=0.18,
             output_price_per_million=0.18,
             quality_tier="premium",
-            best_for=["coding", "debugging", "code-review"],
+            best_for=["coding", "debugging", "code-review", "refactoring"],
         ))
 
+        # Qwen3-8B - Fast + potentially FREE tier
         self._add_model(ModelInfo(
-            id="deepseek/deepseek-chat",
+            id="qwen/qwen3-8b",
             provider="openrouter",
-            owned_by="deepseek",
-            context_window=65536,
+            owned_by="alibaba",
+            context_window=131072,
             max_output_tokens=8192,
             supports_functions=True,
-            input_price_per_million=0.14,
-            output_price_per_million=0.28,
-            quality_tier="standard",
-            best_for=["general", "reasoning", "chinese"],
+            input_price_per_million=0.06,
+            output_price_per_million=0.18,
+            quality_tier="budget",
+            best_for=["fast", "cost-effective", "simple-tasks", "chinese"],
         ))
 
+        # ----- Moonshot AI (Kimi) -----
+
+        # Kimi K2 - 1T MoE (32B active) - State-of-the-art coding
         self._add_model(ModelInfo(
-            id="deepseek/deepseek-coder",
+            id="moonshotai/kimi-k2",
             provider="openrouter",
-            owned_by="deepseek",
-            context_window=65536,
+            owned_by="moonshot",
+            context_window=131072,
             max_output_tokens=8192,
             supports_functions=True,
-            input_price_per_million=0.14,
-            output_price_per_million=0.28,
-            quality_tier="standard",
-            best_for=["coding", "debugging", "code-generation"],
+            supports_json_mode=True,
+            input_price_per_million=0.15,
+            output_price_per_million=0.60,
+            quality_tier="flagship",
+            best_for=["coding", "reasoning", "agents", "chinese", "tool-use"],
+        ))
+
+        # ----- Zhipu AI (GLM) -----
+
+        # GLM-4.5 - Top open-source, strong tool-calling
+        self._add_model(ModelInfo(
+            id="zhipu/glm-4.5",
+            provider="openrouter",
+            owned_by="zhipu",
+            context_window=131072,
+            max_output_tokens=8192,
+            supports_functions=True,
+            supports_json_mode=True,
+            input_price_per_million=0.20,
+            output_price_per_million=0.80,
+            quality_tier="premium",
+            best_for=["tool-use", "chinese", "reasoning", "agents"],
         ))
 
         self._add_model(ModelInfo(
@@ -478,3 +585,158 @@ def handle_models_recommend_request(task_type: str) -> Dict[str, Any]:
         "recommendations": [m.to_openai_format() for m in models[:5]],
         "count": len(models),
     }
+
+
+# =============================================
+# Smart Model Selector (Black Box Selection)
+# =============================================
+
+# Task-to-model mappings for automatic selection
+TASK_MODEL_MAP = {
+    # Coding tasks - Use specialized coders
+    "coding": "qwen/qwen-2.5-coder-32b-instruct",
+    "code": "qwen/qwen-2.5-coder-32b-instruct",
+    "debug": "deepseek/deepseek-coder",
+    "refactor": "qwen/qwen-2.5-coder-32b-instruct",
+
+    # Deep reasoning - Use reasoning specialists
+    "reasoning": "deepseek/deepseek-r1",
+    "math": "deepseek/deepseek-r1",
+    "analysis": "deepseek/deepseek-chat-v3",
+    "research": "deepseek/deepseek-r1",
+
+    # Agents / tool-use - Optimized for function calling
+    "agent": "deepseek/deepseek-chat-v3",
+    "agents": "deepseek/deepseek-chat-v3",
+    "tool-use": "moonshotai/kimi-k2",
+
+    # Fast/cheap tasks
+    "fast": "qwen/qwen3-8b",
+    "simple": "deepseek/deepseek-r1-distill-qwen-8b",
+    "budget": "deepseek/deepseek-r1-distill-qwen-8b",
+
+    # Long context
+    "long-context": "gemini-1.5-pro",
+    "document": "gemini-1.5-pro",
+
+    # Vision tasks
+    "vision": "claude-sonnet-4-5-20250929",
+    "image": "claude-sonnet-4-5-20250929",
+
+    # Chinese language
+    "chinese": "qwen/qwen3-235b-a22b",
+    "multilingual": "qwen/qwen3-235b-a22b",
+
+    # Default fallback
+    "general": "deepseek/deepseek-chat-v3",
+    "default": "deepseek/deepseek-chat-v3",
+}
+
+# Cost tiers for budget-conscious selection
+COST_TIER_MODELS = {
+    "free": "qwen/qwen3-8b",  # Often has free tier
+    "budget": "deepseek/deepseek-r1-distill-qwen-8b",  # $0.02/$0.10
+    "standard": "deepseek/deepseek-chat-v3",  # $0.20/$0.80
+    "premium": "claude-sonnet-4-5-20250929",  # $3/$15
+    "flagship": "claude-opus-4-5-20251101",  # $15/$75
+}
+
+
+def select_model(
+    task: Optional[str] = None,
+    budget: Optional[str] = None,
+    require_vision: bool = False,
+    require_long_context: bool = False,
+    require_function_calling: bool = False,
+    prefer_chinese: bool = False,
+) -> str:
+    """
+    Smart model selector - automatically picks the best model.
+
+    This "black boxes" the model selection process. Users specify what they
+    need, and the system picks the optimal model for cost/performance.
+
+    Args:
+        task: Task type (coding, reasoning, agents, fast, etc.)
+        budget: Cost tier (free, budget, standard, premium, flagship)
+        require_vision: Must support image/vision input
+        require_long_context: Needs >100K context window
+        require_function_calling: Must support tool/function calling
+        prefer_chinese: Prefer Chinese-trained models (Qwen, DeepSeek)
+
+    Returns:
+        Model ID string for the recommended model
+
+    Examples:
+        # For coding with budget constraints
+        model = select_model(task="coding", budget="budget")
+
+        # For complex reasoning
+        model = select_model(task="reasoning")
+
+        # For agent workflows with tool calling
+        model = select_model(task="agents", require_function_calling=True)
+
+        # For vision tasks
+        model = select_model(require_vision=True)
+    """
+    catalog = get_model_catalog()
+
+    # Vision requirement narrows choices significantly
+    if require_vision:
+        if budget == "budget":
+            return "gemini-1.5-flash"
+        return "claude-sonnet-4-5-20250929"
+
+    # Long context requirement
+    if require_long_context:
+        return "gemini-1.5-pro"  # 2M context
+
+    # Budget-first selection
+    if budget:
+        model_id = COST_TIER_MODELS.get(budget)
+        if model_id:
+            model = catalog.get_model(model_id)
+            # Verify it meets other requirements
+            if model and (not require_function_calling or model.supports_functions):
+                return model_id
+
+    # Chinese preference
+    if prefer_chinese:
+        if task == "reasoning":
+            return "deepseek/deepseek-r1"
+        elif task == "coding":
+            return "qwen/qwen-2.5-coder-32b-instruct"
+        return "deepseek/deepseek-chat-v3"
+
+    # Task-based selection
+    if task:
+        task_lower = task.lower()
+        model_id = TASK_MODEL_MAP.get(task_lower)
+        if model_id:
+            return model_id
+
+    # Default: Best value flagship
+    return "deepseek/deepseek-chat-v3"
+
+
+def get_model_for_agent() -> str:
+    """Get the best model for agent/ReAct workflows.
+
+    Returns a model optimized for:
+    - Function/tool calling
+    - Reasoning ability
+    - Cost efficiency
+    - Reliability
+    """
+    return select_model(task="agents", require_function_calling=True)
+
+
+def get_model_for_coding() -> str:
+    """Get the best model for coding tasks."""
+    return select_model(task="coding", prefer_chinese=True)
+
+
+def get_model_for_reasoning() -> str:
+    """Get the best model for complex reasoning/math."""
+    return select_model(task="reasoning")
