@@ -13,10 +13,31 @@
 **Branch**: `main`
 **Tests**: 59 SDK tests + 204 core tests = 263 total
 
-The plugin SDK is production-ready. External projects can now create custom tools and integrate with conductor-ai agents.
+### Phase 2: 3-Way Plugin Integration - COMPLETE
+**Branch**: `main`
+**Tests**: 28 new tests (observability + integration)
 
-### Phase 2: Project Integrations - IN PROGRESS
-**Next**: dealer-scraper-mvp + sales-agent
+✅ **Audit/Observability Layer** (`src/observability/`)
+- `AuditRecord` - Full audit trail for tool executions
+- `AuditLogger` - In-memory logger with Supabase persistence ready
+- `@audit_logged` decorator - Auto-log any async function
+
+✅ **dealer-scraper-mvp Plugin** (`plugins/scraper_tools/`)
+- `DealerLocatorTool` - Scrape 25+ OEM dealer locators
+- `ContractorEnrichTool` - Apollo/Clay/Hunter enrichment
+- `LicenseValidateTool` - State license validation
+
+✅ **sales-agent Plugin** (`plugins/sales_tools/`)
+- `OutreachTool` - Email/SMS/LinkedIn outreach
+- `QualifyTool` - Lead scoring (0-100)
+- `CRMSyncTool` - Close/HubSpot/Apollo sync
+
+### SQL Migration - PENDING USER ACTION
+**File**: `sql/001_audit_and_leads.sql`
+- Run in Supabase SQL Editor to create:
+  - `audit_logs` - Tool execution audit trail
+  - `tool_executions` - Detailed I/O records
+  - `leads` - Shared lead storage
 
 ---
 
@@ -207,6 +228,47 @@ APP_ENV=development
 
 ## Architecture
 
+### 3-Way Plugin Integration
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        CONDUCTOR-AI                              │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
+│  │ AgentRunner │  │ ToolRegistry │  │ AuditLogger             │  │
+│  │ (ReAct)     │──│ (Global)    │──│ @audit_logged decorator │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
+│         │                │                       │               │
+│         │        ┌───────┴───────┐               │               │
+│         │        ▼               ▼               ▼               │
+│  ┌──────┴────────────┐   ┌────────────────┐   ┌───────┐         │
+│  │ dealer-scraper-mvp│   │ sales-agent    │   │Supabase│        │
+│  │ Plugin            │   │ Plugin         │   │        │        │
+│  │ ┌───────────────┐ │   │ ┌────────────┐ │   │audit_  │        │
+│  │ │DealerLocator  │ │   │ │OutreachTool│ │   │logs    │        │
+│  │ │ContractorEnr. │ │   │ │QualifyTool │ │   │leads   │        │
+│  │ │LicenseValidate│ │   │ │CRMSyncTool │ │   │tool_   │        │
+│  │ └───────────────┘ │   │ └────────────┘ │   │exec    │        │
+│  └───────────────────┘   └────────────────┘   └───────┘         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Data Flow
+```
+1. Scrape    → dealer-scraper-mvp/DealerLocatorTool
+                     ↓
+2. Enrich    → dealer-scraper-mvp/ContractorEnrichTool
+                     ↓
+3. Validate  → dealer-scraper-mvp/LicenseValidateTool
+                     ↓
+4. Qualify   → sales-agent/QualifyTool (score 0-100)
+                     ↓
+5. Outreach  → sales-agent/OutreachTool (email/sms/linkedin)
+                     ↓
+6. Sync      → sales-agent/CRMSyncTool (close/hubspot/apollo)
+                     ↓
+All steps   → AuditLogger → Supabase:audit_logs
+```
+
+### ReAct Loop
 ```
 Client Request
      │
