@@ -24,14 +24,15 @@ Workflow integration:
 
 import asyncio
 import os
+from dataclasses import dataclass
 from enum import Enum
 from time import perf_counter
-from typing import Any, Optional
-from dataclasses import dataclass
+from typing import Any
 
 import aiohttp
 from pydantic import BaseModel, Field
 
+from src.sdk.security.ssrf import SSRFError, validate_url
 from src.tools.base import BaseTool, ToolCategory, ToolDefinition, ToolResult
 
 
@@ -167,15 +168,15 @@ class VideoGenerationRequest(BaseModel):
         default=VideoStyle.PROFESSIONAL,
         description="Visual style for the video",
     )
-    reference_image_url: Optional[str] = Field(
+    reference_image_url: str | None = Field(
         default=None,
         description="URL of reference image for image-to-video generation",
     )
-    negative_prompt: Optional[str] = Field(
+    negative_prompt: str | None = Field(
         default=None,
         description="What to avoid in the generated video",
     )
-    seed: Optional[int] = Field(
+    seed: int | None = Field(
         default=None,
         description="Random seed for reproducibility",
     )
@@ -185,7 +186,7 @@ class VideoGenerationResult(BaseModel):
     """Output schema for video generation."""
 
     video_url: str = Field(..., description="URL to download/stream the generated video")
-    thumbnail_url: Optional[str] = Field(None, description="Video thumbnail URL")
+    thumbnail_url: str | None = Field(None, description="Video thumbnail URL")
     duration_seconds: float = Field(..., description="Actual video duration")
     resolution: str = Field(..., description="Video resolution (e.g., 1920x1080)")
     provider: str = Field(..., description="Provider used for generation")
@@ -284,7 +285,7 @@ class VideoGeneratorTool(BaseTool):
             },
         )
 
-    def _get_api_key(self, provider: VideoProvider) -> Optional[str]:
+    def _get_api_key(self, provider: VideoProvider) -> str | None:
         """Get API key for the specified provider."""
         config = PROVIDER_CONFIGS.get(provider)
         if not config:
@@ -507,7 +508,7 @@ class VideoGeneratorTool(BaseTool):
         """Generate video using Luma Dream Machine API."""
         config = PROVIDER_CONFIGS[VideoProvider.LUMA]
 
-        payload = {
+        payload: dict[str, Any] = {
             "prompt": request.prompt,
             "aspect_ratio": request.aspect_ratio.value,
             "loop": False,
@@ -778,6 +779,18 @@ class VideoGeneratorTool(BaseTool):
                 seed=arguments.get("seed"),
             )
 
+            # SSRF validation for reference_image_url
+            if request.reference_image_url:
+                try:
+                    validate_url(request.reference_image_url)
+                except SSRFError as e:
+                    return ToolResult(
+                        tool_name=self.definition.name,
+                        success=False,
+                        error=f"Invalid reference_image_url (SSRF blocked): {str(e)}",
+                        execution_time_ms=0,
+                    )
+
         except Exception as e:
             return ToolResult(
                 tool_name=self.definition.name,
@@ -974,7 +987,7 @@ class BatchVideoGeneratorTool(BaseTool):
         total_cost = 0.0
         success_count = 0
 
-        for i, (scene, result) in enumerate(zip(scenes, results)):
+        for i, (scene, result) in enumerate(zip(scenes, results, strict=True)):
             if isinstance(result, Exception):
                 batch_results.append({
                     "scene_name": scene.get("name", f"scene_{i}"),
@@ -982,16 +995,17 @@ class BatchVideoGeneratorTool(BaseTool):
                     "error": str(result),
                 })
             elif isinstance(result, ToolResult):
+                result_data = result.result or {}
                 if result.success:
                     success_count += 1
-                    total_cost += result.result.get("estimated_cost_usd", 0)
+                    total_cost += result_data.get("estimated_cost_usd", 0)
 
                 batch_results.append({
                     "scene_name": scene.get("name", f"scene_{i}"),
                     "success": result.success,
-                    "video_url": result.result.get("video_url") if result.success else None,
+                    "video_url": result_data.get("video_url") if result.success else None,
                     "error": result.error if not result.success else None,
-                    "estimated_cost_usd": result.result.get("estimated_cost_usd", 0) if result.success else 0,
+                    "estimated_cost_usd": result_data.get("estimated_cost_usd", 0) if result.success else 0,
                 })
 
         end_time = perf_counter()

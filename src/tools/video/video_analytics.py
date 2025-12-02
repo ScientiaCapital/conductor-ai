@@ -136,7 +136,8 @@ class LoomViewTrackerTool(BaseTool):
 
         # Component 3: Time to first view (faster = better, within 24h = max score)
         try:
-            first_view = datetime.fromisoformat(first_viewed_at.replace("Z", "+00:00"))
+            # Parse first_viewed_at to validate format (used for future time-based scoring)
+            _ = datetime.fromisoformat(first_viewed_at.replace("Z", "+00:00"))
             # Assume video was sent at some point - for now, give max score
             # In production, you'd compare against send timestamp
             time_component = 20  # Placeholder - would calculate based on send time
@@ -302,7 +303,7 @@ class LoomViewTrackerTool(BaseTool):
                 result_data = {
                     "video_id": video_id,
                     "total_views": len(viewers),
-                    "unique_viewers": len(set(v.get("email") for v in viewers if v.get("email"))),
+                    "unique_viewers": len({v.get("email") for v in viewers if v.get("email")}),
                     "average_completion_rate": round(avg_completion, 2),
                     "hot_leads_count": len(hot_leads),
                     "hot_leads": hot_leads,
