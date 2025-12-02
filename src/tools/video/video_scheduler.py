@@ -1,12 +1,11 @@
 """Video Scheduler Tool for predicting optimal video send times based on prospect data."""
 
-import os
 from datetime import datetime, time
-from typing import Any, Dict, List, Optional
+from typing import Any
 from zoneinfo import ZoneInfo
 
+from src.providers import ProviderError, get_provider_manager
 from src.tools.base import BaseTool, ToolCategory, ToolDefinition, ToolResult
-from src.providers import get_provider_manager, ProviderError
 
 
 class VideoSchedulerTool(BaseTool):
@@ -76,7 +75,7 @@ class VideoSchedulerTool(BaseTool):
     }
 
     # Day of week engagement scores (0=Monday, 6=Sunday)
-    DAY_SCORES = {
+    DAY_SCORES: dict[int, dict[str, float | str]] = {
         0: {"score": 0.70, "name": "Monday", "note": "Inbox overload"},
         1: {"score": 0.90, "name": "Tuesday", "note": "Highest engagement"},
         2: {"score": 0.90, "name": "Wednesday", "note": "Highest engagement"},
@@ -131,7 +130,7 @@ class VideoSchedulerTool(BaseTool):
             },
         )
 
-    def _get_industry_windows(self, industry: str) -> List[Dict[str, Any]]:
+    def _get_industry_windows(self, industry: str) -> list[dict[str, Any]]:
         """
         Get base time windows for a given industry.
 
@@ -146,7 +145,7 @@ class VideoSchedulerTool(BaseTool):
 
     def _apply_role_adjustment(
         self,
-        window: Dict[str, Any],
+        window: dict[str, Any],
         role_level: str
     ) -> float:
         """
@@ -161,7 +160,7 @@ class VideoSchedulerTool(BaseTool):
         """
         base_confidence = window["confidence"]
         role_key = role_level.lower()
-        adjustments = self.ROLE_ADJUSTMENTS.get(role_key, {})
+        adjustments: dict[str, float] = self.ROLE_ADJUSTMENTS.get(role_key, {})
 
         hour = window["start"].hour
 
@@ -189,9 +188,9 @@ class VideoSchedulerTool(BaseTool):
                 adjusted_confidence += adjustments.get("business_hours_boost", 0)
 
         # Clamp to valid range [0, 1]
-        return max(0.0, min(1.0, adjusted_confidence))
+        return float(max(0.0, min(1.0, adjusted_confidence)))
 
-    def _get_top_days(self) -> List[int]:
+    def _get_top_days(self) -> list[int]:
         """
         Get top engagement days (excluding weekends).
 
@@ -199,7 +198,9 @@ class VideoSchedulerTool(BaseTool):
             List of day indices sorted by engagement score (descending)
         """
         # Filter out weekends and sort by score
-        weekdays = [(day, info["score"]) for day, info in self.DAY_SCORES.items() if day < 5]
+        weekdays: list[tuple[int, float]] = [
+            (day, float(info["score"])) for day, info in self.DAY_SCORES.items() if day < 5
+        ]
         weekdays.sort(key=lambda x: x[1], reverse=True)
         return [day for day, _ in weekdays[:3]]  # Top 3 days
 
@@ -223,7 +224,7 @@ class VideoSchedulerTool(BaseTool):
         industry: str,
         role_level: str,
         timezone_str: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Calculate optimal send time recommendations using rule-based logic.
 
@@ -276,7 +277,7 @@ class VideoSchedulerTool(BaseTool):
         reasoning_parts = [
             f"Industry: {industry.title()} - {base_windows[0]['reason'].lower()}",
             f"Role: {role_level.upper()} - Adjusted for typical {role_level} schedules",
-            f"Best days: {', '.join(self.DAY_SCORES[d]['name'] for d in top_days)} (highest engagement)",
+            f"Best days: {', '.join(str(self.DAY_SCORES[d]['name']) for d in top_days)} (highest engagement)",
         ]
         reasoning = ". ".join(reasoning_parts) + "."
 
@@ -295,7 +296,7 @@ class VideoSchedulerTool(BaseTool):
 
     async def _enhance_with_llm(
         self,
-        base_recommendations: Dict[str, Any],
+        base_recommendations: dict[str, Any],
         prospect_email: str,
         industry: str,
         company_size: str,
@@ -350,7 +351,7 @@ Provide personalized insight in 2-3 sentences focusing on WHY these times work f
 
         except (ProviderError, Exception):
             # Fallback to base reasoning if LLM fails
-            return base_recommendations["reasoning"]
+            return str(base_recommendations["reasoning"])
 
     async def run(self, arguments: dict) -> ToolResult:
         """
@@ -363,13 +364,13 @@ Provide personalized insight in 2-3 sentences focusing on WHY these times work f
         Returns:
             ToolResult with optimal send time recommendations
         """
-        # Extract arguments
-        prospect_email = arguments.get("prospect_email")
-        prospect_timezone = arguments.get("prospect_timezone", self.DEFAULT_TIMEZONE)
-        industry = arguments.get("industry")
-        company_size = arguments.get("company_size", "Unknown")
-        role_level = arguments.get("role_level")
-        use_llm = arguments.get("use_llm", False)
+        # Extract arguments with defaults
+        prospect_email: str = arguments.get("prospect_email", "unknown@example.com")
+        prospect_timezone: str = arguments.get("prospect_timezone", self.DEFAULT_TIMEZONE)
+        industry: str = arguments.get("industry", "general")
+        company_size: str = arguments.get("company_size", "Unknown")
+        role_level: str = arguments.get("role_level", "manager")
+        use_llm: bool = arguments.get("use_llm", False)
 
         # Validate timezone
         try:

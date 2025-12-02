@@ -7,8 +7,8 @@ Follows Hook→Value→Proof→CTA structure optimized for cold outreach.
 
 import json
 import os
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 import aiohttp
 
@@ -271,10 +271,10 @@ Output format must be valid JSON with this structure:
         prospect_name: str,
         company_name: str,
         industry: str,
-        company_website: Optional[str] = None,
-        linkedin_url: Optional[str] = None,
-        pain_points: Optional[list] = None,
-        product_features: Optional[list] = None,
+        company_website: str | None = None,
+        linkedin_url: str | None = None,
+        pain_points: list | None = None,
+        product_features: list | None = None,
     ) -> str:
         """
         Build the user prompt with prospect details.
@@ -344,7 +344,7 @@ Output valid JSON with hook, value, proof, cta sections, timestamps, and notes."
 
     async def _call_llm(
         self, system_prompt: str, user_prompt: str, model: str
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Call OpenRouter API to generate script.
 
@@ -409,9 +409,9 @@ Output valid JSON with hook, value, proof, cta sections, timestamps, and notes."
 
         # Parse JSON from content
         try:
-            script_data = json.loads(content)
+            script_data: dict[str, Any] = json.loads(content)
         except json.JSONDecodeError as e:
-            raise Exception(f"Failed to parse LLM response as JSON: {str(e)}")
+            raise Exception(f"Failed to parse LLM response as JSON: {str(e)}") from e
 
         return script_data
 
@@ -509,7 +509,7 @@ Output valid JSON with hook, value, proof, cta sections, timestamps, and notes."
                     "company_name": company_name,
                     "industry": industry,
                     "model_used": model,
-                    "generation_timestamp": datetime.now(tz=timezone.utc).isoformat(),
+                    "generation_timestamp": datetime.now(tz=UTC).isoformat(),
                 },
             }
 

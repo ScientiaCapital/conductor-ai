@@ -4,7 +4,7 @@ import json
 import os
 from enum import Enum
 from time import perf_counter
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import aiohttp
 
@@ -179,10 +179,10 @@ class VideoTemplateManagerTool(BaseTool):
     OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
     DEFAULT_TIMEOUT = 60  # seconds
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the tool with in-memory template storage."""
         # In-memory template storage (can be extended to Redis/DB later)
-        self._templates: Dict[str, Dict[str, Any]] = {}
+        self._templates: dict[str, dict[str, Any]] = {}
         self._api_key = os.getenv("OPENROUTER_API_KEY")
 
     @property
@@ -441,12 +441,12 @@ class VideoTemplateManagerTool(BaseTool):
     def _build_base_template(
         self,
         industry: Industry,
-        preset: Dict[str, Any],
+        preset: dict[str, Any],
         prospect_segment: str,
         product_name: str,
-        key_features: List[str],
-        competitor_mentioned: Optional[str],
-    ) -> Dict[str, Any]:
+        key_features: list[str],
+        competitor_mentioned: str | None,
+    ) -> dict[str, Any]:
         """
         Build base template structure before LLM customization.
 
@@ -466,7 +466,7 @@ class VideoTemplateManagerTool(BaseTool):
         relevant_features = preset["key_features"][:4]  # Top 4 features
         roi_metrics = preset["roi_metrics"][:3]  # Top 3 ROI metrics
 
-        scenes = []
+        scenes: list[dict[str, Any]] = []
 
         # INTRO_SCENE (0-15s)
         scenes.append({
@@ -598,14 +598,14 @@ class VideoTemplateManagerTool(BaseTool):
 
     async def _llm_customize_template(
         self,
-        base_template: Dict[str, Any],
+        base_template: dict[str, Any],
         industry: Industry,
-        preset: Dict[str, Any],
+        preset: dict[str, Any],
         prospect_segment: str,
         product_name: str,
-        key_features: List[str],
-        competitor_mentioned: Optional[str],
-    ) -> Dict[str, Any]:
+        key_features: list[str],
+        competitor_mentioned: str | None,
+    ) -> dict[str, Any]:
         """
         Use DeepSeek V3 to customize template with intelligent suggestions.
 
@@ -688,12 +688,12 @@ class VideoTemplateManagerTool(BaseTool):
 
     def _build_customization_prompt(
         self,
-        base_template: Dict[str, Any],
+        base_template: dict[str, Any],
         industry: Industry,
         prospect_segment: str,
         product_name: str,
-        key_features: List[str],
-        competitor_mentioned: Optional[str],
+        key_features: list[str],
+        competitor_mentioned: str | None,
     ) -> str:
         """
         Build LLM prompt for template customization.
@@ -731,7 +731,7 @@ Return ONLY a JSON object with the enhanced template structure. Keep the same ov
 """
         return prompt
 
-    def _merge_llm_suggestions(self, base_template: Dict[str, Any], llm_response: str) -> Dict[str, Any]:
+    def _merge_llm_suggestions(self, base_template: dict[str, Any], llm_response: str) -> dict[str, Any]:
         """
         Merge LLM suggestions into base template.
 

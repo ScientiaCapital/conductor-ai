@@ -14,10 +14,10 @@ Cost efficiency:
 - Video: Kling AI (~$0.01/sec) - 10-50x cheaper than Runway
 """
 
-from src.tools.video.video_script_generator import VideoScriptGeneratorTool
-from src.tools.video.video_generator import VideoGeneratorTool, BatchVideoGeneratorTool
 from src.tools.video.video_analytics import LoomViewTrackerTool, ViewerEnrichmentTool
+from src.tools.video.video_generator import BatchVideoGeneratorTool, VideoGeneratorTool
 from src.tools.video.video_scheduler import VideoSchedulerTool
+from src.tools.video.video_script_generator import VideoScriptGeneratorTool
 from src.tools.video.video_template_manager import VideoTemplateManagerTool
 
 __all__ = [
