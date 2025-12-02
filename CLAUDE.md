@@ -11,7 +11,7 @@
 
 ### Phase 1: SDK Foundation - COMPLETE
 **Branch**: `main`
-**Tests**: 59 SDK tests + 204 core tests = 263 total
+**Tests**: 59 SDK tests + 204 core tests + 186 video tests = 449 total
 
 ### Phase 2: 3-Way Plugin Integration - COMPLETE
 **Branch**: `main`
@@ -31,6 +31,53 @@
 - `OutreachTool` - Email/SMS/LinkedIn outreach
 - `QualifyTool` - Lead scoring (0-100)
 - `CRMSyncTool` - Close/HubSpot/Apollo sync
+
+### Phase 3: Video Tools Module - COMPLETE (2025-12-02)
+**Branch**: `main`
+**Tests**: 186 new tests (video module)
+
+✅ **Video Prospecting Tools** (`src/tools/video/`)
+| Tool | Purpose |
+|------|---------|
+| `VideoScriptGeneratorTool` | Generate 60-sec Loom scripts via DeepSeek V3 |
+| `VideoGeneratorTool` | Multi-provider video gen (Kling/HaiLuo/Runway/Pika/Luma) |
+| `BatchVideoGeneratorTool` | Batch video processing |
+| `LoomViewTrackerTool` | View analytics + engagement scoring |
+| `ViewerEnrichmentTool` | Apollo/Hunter enrichment |
+| `VideoSchedulerTool` | Optimal send time prediction |
+| `VideoTemplateManagerTool` | Industry-specific templates (solar, hvac, electrical, roofing, mep) |
+
+**Usage:**
+```python
+from src.tools.video import (
+    VideoScriptGeneratorTool,
+    VideoGeneratorTool,
+    BatchVideoGeneratorTool,
+    LoomViewTrackerTool,
+    ViewerEnrichmentTool,
+    VideoSchedulerTool,
+    VideoTemplateManagerTool,
+)
+
+# Generate video script for solar prospect
+script_tool = VideoScriptGeneratorTool()
+result = await script_tool.run({
+    "product_name": "SolarMax CRM",
+    "prospect_company": "Acme Solar",
+    "prospect_name": "John Smith",
+    "industry": "solar",
+    "key_pain_point": "permit tracking",
+})
+
+# Schedule optimal send time
+scheduler = VideoSchedulerTool()
+result = await scheduler.run({
+    "prospect_timezone": "America/New_York",
+    "industry": "solar",
+    "role_level": "director",
+    "use_llm": False,  # Fast mode without LLM
+})
+```
 
 ### SQL Migration - PENDING USER ACTION
 **File**: `sql/001_audit_and_leads.sql`
@@ -141,7 +188,8 @@ conductor-ai/
 │   │   ├── registry.py         # Global ToolRegistry singleton
 │   │   ├── web_fetch.py        # HTTP requests
 │   │   ├── code_run.py         # Docker sandboxed code
-│   │   └── sql_query.py        # Supabase queries
+│   │   ├── sql_query.py        # Supabase queries
+│   │   └── video/              # Video prospecting tools (7 tools, 3.5k LOC)
 │   ├── agents/                 # Agent system
 │   │   ├── schemas.py          # AgentSession, AgentStep, etc.
 │   │   ├── state.py            # Redis + Supabase state manager

@@ -13,7 +13,7 @@
 | 🔴 Blocked | 1 |
 | 🟡 In Progress | 0 |
 | 🟢 Ready | 0 |
-| ✅ Done (this sprint) | 5 |
+| ✅ Done (this sprint) | 7 |
 
 ---
 
@@ -97,6 +97,7 @@
 | TASK-014 | dealer-scraper-mvp Plugin (3 tools) | 2025-11-28 | Team |
 | TASK-015 | sales-agent Plugin (3 tools) | 2025-11-28 | Team |
 | TASK-016 | Model Catalog (DeepSeek, Qwen, Kimi, Claude) | 2025-11-29 | Team |
+| TASK-017 | Video Tools Module (7 tools, 186 tests) | 2025-12-02 | Claude |
 
 ---
 
@@ -108,7 +109,7 @@
 - **Avg Task Time**: 2-4 days
 
 ### Quality
-- **Tests Passing**: ✅ (263 total: 59 SDK + 204 core)
+- **Tests Passing**: ✅ (449 total: 59 SDK + 204 core + 186 video)
 - **Type Errors**: 0
 - **Lint Issues**: 0
 - **NO OpenAI**: ✅ (Using DeepSeek, Qwen, Claude, Gemini)
@@ -158,6 +159,7 @@ Ready → In Progress → Review → Done
 ## 📝 Sprint Notes
 
 ### Decisions Made
+- 2025-12-02: Video tools module merged - 7 tools, 186 tests, SSRF protected
 - 2025-11-30: Context engineering deployed
 - 2025-11-29: Phase 2 complete - 3-way plugin integration successful
 - 2025-11-27: SDK foundation established with 5-import public API
