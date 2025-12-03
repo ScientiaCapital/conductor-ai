@@ -22,6 +22,7 @@ Cost efficiency:
 
 from src.tools.storyboard.code_to_storyboard import CodeToStoryboardTool
 from src.tools.storyboard.roadmap_to_storyboard import RoadmapToStoryboardTool
+from src.tools.storyboard.unified_storyboard import UnifiedStoryboardTool
 from src.tools.storyboard.coperniq_presets import (
     COPERNIQ_ICP,
     SANITIZE_RULES,
@@ -38,6 +39,7 @@ __all__ = [
     # Core tools
     "CodeToStoryboardTool",
     "RoadmapToStoryboardTool",
+    "UnifiedStoryboardTool",
     # Gemini client
     "GeminiStoryboardClient",
     "StoryboardUnderstanding",

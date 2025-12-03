@@ -7,11 +7,11 @@
 
 ---
 
-## Current Status (2025-12-02)
+## Current Status (2025-12-03)
 
 ### Phase 1: SDK Foundation - COMPLETE
 **Branch**: `main`
-**Tests**: 59 SDK tests + 204 core tests + 186 video tests + 229 storyboard tests = 678 total
+**Tests**: 59 SDK tests + 204 core tests + 186 video tests + 263 storyboard tests = 712 total
 
 ### Phase 2: 3-Way Plugin Integration - COMPLETE
 **Branch**: `main`
@@ -81,13 +81,14 @@ result = await scheduler.run({
 
 ### Phase 4: Storyboard Tools Module - COMPLETE (2025-12-02)
 **Branch**: `main`
-**Tests**: 168 new tests (storyboard module)
+**Tests**: 202 tests (storyboard module)
 
 ✅ **Storyboard Tools** (`src/tools/storyboard/`)
 | Tool | Purpose |
 |------|---------|
 | `CodeToStoryboardTool` | Transform code files into executive PNG storyboards |
 | `RoadmapToStoryboardTool` | Transform Miro/roadmaps into sanitized "Coming Soon" teasers |
+| `UnifiedStoryboardTool` | **NEW** - All-in-one tool accepting ANY input (Miro URL, image, code) |
 | `GeminiStoryboardClient` | Two-stage pipeline: Understand (Vision) → Generate (Image Gen) |
 | `coperniq_presets` | ICP-optimized presets for MEP+energy contractors |
 
@@ -97,30 +98,37 @@ result = await scheduler.run({
 - Three stages: preview, demo, shipped
 - Three audiences: business_owner, c_suite, btl_champion
 - Target: MEP+energy contractors ($5M+ ICP)
+- **Auto-opens result in default browser**
 
 **Usage:**
 ```python
 from src.tools.storyboard import (
     CodeToStoryboardTool,
     RoadmapToStoryboardTool,
+    UnifiedStoryboardTool,
 )
 
-# Transform code to executive storyboard
-tool = CodeToStoryboardTool()
+# RECOMMENDED: Use UnifiedStoryboardTool for any input type
+tool = UnifiedStoryboardTool()
+
+# From code string - opens in browser automatically
 result = await tool.run({
-    "file_path": "src/calculator.py",
-    "icp_preset": "coperniq_mep",
-    "stage": "preview",
+    "input": "def calculate_roi(): return revenue - costs",
     "audience": "c_suite",
 })
-# result.result["storyboard_png"] = base64 PNG image
 
-# Transform roadmap screenshot to teaser
-roadmap_tool = RoadmapToStoryboardTool()
-result = await roadmap_tool.run({
-    "image_path": "roadmap_screenshot.png",
-    "sanitize_ip": True,
+# From Miro screenshot (paste base64)
+result = await tool.run({
+    "input": "data:image/png;base64,iVBORw0KGgo...",
+    "stage": "demo",
 })
+
+# From code file
+result = await tool.run({
+    "input": "/path/to/calculator.py",
+})
+# result.result["storyboard_png"] = base64 PNG
+# result.result["file_path"] = path to saved PNG
 ```
 
 ### Phase 5: Storyboard Pipeline API - COMPLETE (2025-12-02)
@@ -268,7 +276,7 @@ conductor-ai/
 │   │   ├── code_run.py         # Docker sandboxed code
 │   │   ├── sql_query.py        # Supabase queries
 │   │   ├── video/              # Video prospecting tools (7 tools, 3.5k LOC)
-│   │   └── storyboard/         # Storyboard tools (2 tools, 168 tests)
+│   │   └── storyboard/         # Storyboard tools (3 tools, 202 tests)
 │   ├── agents/                 # Agent system
 │   │   ├── schemas.py          # AgentSession, AgentStep, etc.
 │   │   ├── state.py            # Redis + Supabase state manager
@@ -281,8 +289,34 @@ conductor-ai/
 │   ├── sdk/                    # SDK tests (59 tests)
 │   └── tools/                  # Tool tests
 ├── pyproject.toml              # Package config with SDK extras
+├── .claude/
+│   └── commands/               # Pipeline commands (NEW)
+│       ├── pipeline-feature.md # 6-phase feature development workflow
+│       └── pipeline-eod.md     # End of day audit/sync workflow
 └── docker-compose.yml          # Redis + API services
 ```
+
+---
+
+## Pipeline Commands (NEW 2025-12-03)
+
+### /pipeline:feature [description]
+6-phase feature development workflow with gates:
+1. **Planning** - Brainstorm + write plan
+2. **Database** - Schema design + migrations
+3. **Parallel Implementation** - Backend + Frontend + Tests agents
+4. **Integration** - Wire components + security scan
+5. **Testing** - Full test suite + coverage
+6. **Code Review** - BLOCKING gate, must pass
+
+### /pipeline:eod
+End of day audit/sync workflow:
+1. **Audit** - Review git activity, summarize work
+2. **Security Sweep** - Secrets scan, OpenAI check
+3. **Docs Update** - TASK.md, CLAUDE.md
+4. **Code Quality** - Lint, type check
+5. **Git Sync** - Commit, push, worktree cleanup
+6. **Tomorrow Context** - Generate "Start Here" context
 
 ---
 
