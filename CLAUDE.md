@@ -11,7 +11,7 @@
 
 ### Phase 1: SDK Foundation - COMPLETE
 **Branch**: `main`
-**Tests**: 59 SDK tests + 204 core tests + 186 video tests + 168 storyboard tests = 617 total
+**Tests**: 59 SDK tests + 204 core tests + 186 video tests + 229 storyboard tests = 678 total
 
 ### Phase 2: 3-Way Plugin Integration - COMPLETE
 **Branch**: `main`
@@ -123,12 +123,46 @@ result = await roadmap_tool.run({
 })
 ```
 
-### SQL Migration - PENDING USER ACTION
+### Phase 5: Storyboard Pipeline API - COMPLETE (2025-12-02)
+**Branch**: `main`
+**Tests**: 61 new API tests (229 total storyboard tests)
+
+✅ **Async FastAPI Endpoints** (`src/storyboard/`)
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/storyboard/code` | POST | Code → PNG storyboard (202 + job_id) |
+| `/storyboard/roadmap` | POST | Roadmap screenshot → PNG teaser (202 + job_id) |
+| `/storyboard/jobs/{job_id}` | GET | Poll job status and results |
+
+**Architecture:**
+- Redis for hot state (1hr TTL), Supabase for cold persistence
+- Multi-tenant isolation with X-Org-ID header validation
+- 5-minute timeout protection on background tasks
+- Singleton job manager to prevent connection leaks
+
+**Usage:**
+```bash
+# Generate storyboard from code
+curl -X POST http://localhost:8000/storyboard/code \
+  -H "Content-Type: application/json" \
+  -H "X-Org-ID: my-org" \
+  -d '{"file_content": "def calculate_roi(): pass", "stage": "preview"}'
+
+# Poll for result
+curl http://localhost:8000/storyboard/jobs/{job_id} \
+  -H "X-Org-ID: my-org"
+```
+
+### SQL Migrations - PENDING USER ACTION
 **File**: `sql/001_audit_and_leads.sql`
 - Run in Supabase SQL Editor to create:
   - `audit_logs` - Tool execution audit trail
   - `tool_executions` - Detailed I/O records
   - `leads` - Shared lead storage
+
+**File**: `sql/002_storyboard_jobs.sql`
+- Run in Supabase SQL Editor to create:
+  - `storyboard_jobs` - Job state persistence with RLS
 
 ---
 
@@ -299,6 +333,9 @@ APP_ENV=development
 | POST | `/agents/{id}/cancel` | Cancel running session |
 | GET | `/tools` | List available tools |
 | GET | `/health` | Health check |
+| POST | `/storyboard/code` | Code → PNG storyboard (202 async) |
+| POST | `/storyboard/roadmap` | Roadmap → PNG teaser (202 async) |
+| GET | `/storyboard/jobs/{job_id}` | Poll storyboard job status |
 
 ---
 

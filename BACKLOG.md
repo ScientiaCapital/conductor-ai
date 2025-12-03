@@ -10,10 +10,10 @@
 
 | Status | Count |
 |--------|-------|
-| 🔴 Blocked | 1 |
+| 🔴 Blocked | 2 |
 | 🟡 In Progress | 0 |
-| 🟢 Ready | 0 |
-| ✅ Done (this sprint) | 8 |
+| 🟢 Ready | 1 |
+| ✅ Done (this sprint) | 9 |
 
 ---
 
@@ -45,6 +45,27 @@
 
 ---
 
+#### 2. [MEDIUM] SQL Migration for Storyboard Jobs
+- **ID**: TASK-020
+- **Assignee**: User
+- **Labels**: `database`, `migration`, `user-action`
+- **Est. Time**: 10 minutes
+- **Dependencies**: None
+
+**Description**: Run SQL migration file `sql/002_storyboard_jobs.sql` in Supabase SQL Editor to enable storyboard job persistence.
+
+**Blocker**: Requires user to manually run migration in Supabase dashboard.
+
+**Tables to Create**:
+- `storyboard_jobs` - Job state with RLS policies
+
+**Acceptance Criteria**:
+- [ ] SQL migration executed in Supabase
+- [ ] Table created and accessible
+- [ ] RLS policies applied
+
+---
+
 ### 🟡 In Progress
 <!-- Tasks actively being worked on - LIMIT: 2 tasks max -->
 
@@ -55,7 +76,26 @@
 ### 🟢 Ready (Prioritized)
 <!-- Tasks ready to start, ordered by priority -->
 
-*Awaiting user decision on next phase (see Sprint Notes below)*
+#### 1. [HIGH] Add GOOGLE_API_KEY and Test Storyboard API
+- **ID**: TASK-021
+- **Assignee**: User
+- **Labels**: `setup`, `testing`, `api`
+- **Est. Time**: 15 minutes
+- **Dependencies**: Redis running (✅ done), SQL migrations
+
+**Description**: Add Google API key to `.env` and test the storyboard API with real images.
+
+**Steps**:
+1. Get Gemini API key from https://ai.google.dev/
+2. Add to `.env`: `GOOGLE_API_KEY=AIza...`
+3. Start API: `python -m uvicorn src.api:app --reload`
+4. Test with curl or image upload
+
+**Acceptance Criteria**:
+- [ ] GOOGLE_API_KEY set in .env
+- [ ] API server starts without errors
+- [ ] POST /storyboard/code returns 202
+- [ ] GET /storyboard/jobs/{id} returns job status
 
 ---
 
@@ -99,6 +139,7 @@
 | TASK-016 | Model Catalog (DeepSeek, Qwen, Kimi, Claude) | 2025-11-29 | Team |
 | TASK-017 | Video Tools Module (7 tools, 186 tests) | 2025-12-02 | Claude |
 | TASK-018 | Storyboard Tools (2 tools, 168 tests) - Code/Roadmap to PNG | 2025-12-02 | Claude |
+| TASK-019 | Storyboard Pipeline API (3 endpoints, 61 tests) - Async job processing | 2025-12-02 | Claude |
 
 ---
 
@@ -110,7 +151,7 @@
 - **Avg Task Time**: 2-4 days
 
 ### Quality
-- **Tests Passing**: ✅ (549 total: 59 SDK + 204 core + 186 video + 168 storyboard)
+- **Tests Passing**: ✅ (678 total: 59 SDK + 204 core + 186 video + 229 storyboard)
 - **Type Errors**: 0
 - **Lint Issues**: 0
 - **NO OpenAI**: ✅ (Using DeepSeek, Qwen, Claude, Gemini)
@@ -160,6 +201,7 @@ Ready → In Progress → Review → Done
 ## 📝 Sprint Notes
 
 ### Decisions Made
+- 2025-12-02: Storyboard Pipeline API complete - 3 endpoints, 61 tests, async job processing
 - 2025-12-02: Storyboard tools module complete - 2 tools, 168 tests, Gemini Vision + Image Gen
 - 2025-12-02: Video tools module merged - 7 tools, 186 tests, SSRF protected
 - 2025-11-30: Context engineering deployed
@@ -199,6 +241,8 @@ Ready → In Progress → Review → Done
 | `PRPs/` | Implementation plans |
 | `/validate` | Run before completing tasks |
 | `sql/001_audit_and_leads.sql` | Database migration file |
+| `sql/002_storyboard_jobs.sql` | Storyboard jobs migration |
+| `.env.example` | Environment template |
 
 ---
 
