@@ -7,11 +7,11 @@
 
 ---
 
-## Current Status (2025-11-27)
+## Current Status (2025-12-02)
 
 ### Phase 1: SDK Foundation - COMPLETE
 **Branch**: `main`
-**Tests**: 59 SDK tests + 204 core tests + 186 video tests = 449 total
+**Tests**: 59 SDK tests + 204 core tests + 186 video tests + 168 storyboard tests = 617 total
 
 ### Phase 2: 3-Way Plugin Integration - COMPLETE
 **Branch**: `main`
@@ -76,6 +76,50 @@ result = await scheduler.run({
     "industry": "solar",
     "role_level": "director",
     "use_llm": False,  # Fast mode without LLM
+})
+```
+
+### Phase 4: Storyboard Tools Module - COMPLETE (2025-12-02)
+**Branch**: `main`
+**Tests**: 168 new tests (storyboard module)
+
+✅ **Storyboard Tools** (`src/tools/storyboard/`)
+| Tool | Purpose |
+|------|---------|
+| `CodeToStoryboardTool` | Transform code files into executive PNG storyboards |
+| `RoadmapToStoryboardTool` | Transform Miro/roadmaps into sanitized "Coming Soon" teasers |
+| `GeminiStoryboardClient` | Two-stage pipeline: Understand (Vision) → Generate (Image Gen) |
+| `coperniq_presets` | ICP-optimized presets for MEP+energy contractors |
+
+**Features:**
+- Gemini 2.0 Flash Vision + Image Generation (NO OpenAI)
+- Automatic IP sanitization (strips code internals, API keys, secrets)
+- Three stages: preview, demo, shipped
+- Three audiences: business_owner, c_suite, btl_champion
+- Target: MEP+energy contractors ($5M+ ICP)
+
+**Usage:**
+```python
+from src.tools.storyboard import (
+    CodeToStoryboardTool,
+    RoadmapToStoryboardTool,
+)
+
+# Transform code to executive storyboard
+tool = CodeToStoryboardTool()
+result = await tool.run({
+    "file_path": "src/calculator.py",
+    "icp_preset": "coperniq_mep",
+    "stage": "preview",
+    "audience": "c_suite",
+})
+# result.result["storyboard_png"] = base64 PNG image
+
+# Transform roadmap screenshot to teaser
+roadmap_tool = RoadmapToStoryboardTool()
+result = await roadmap_tool.run({
+    "image_path": "roadmap_screenshot.png",
+    "sanitize_ip": True,
 })
 ```
 
@@ -189,7 +233,8 @@ conductor-ai/
 │   │   ├── web_fetch.py        # HTTP requests
 │   │   ├── code_run.py         # Docker sandboxed code
 │   │   ├── sql_query.py        # Supabase queries
-│   │   └── video/              # Video prospecting tools (7 tools, 3.5k LOC)
+│   │   ├── video/              # Video prospecting tools (7 tools, 3.5k LOC)
+│   │   └── storyboard/         # Storyboard tools (2 tools, 168 tests)
 │   ├── agents/                 # Agent system
 │   │   ├── schemas.py          # AgentSession, AgentStep, etc.
 │   │   ├── state.py            # Redis + Supabase state manager
