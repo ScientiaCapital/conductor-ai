@@ -96,16 +96,57 @@
             color: #888;
         }
 
-        .image-preview {
+        .image-preview-container {
             margin-top: 20px;
             text-align: center;
         }
 
-        .image-preview img {
-            max-width: 100%;
-            max-height: 300px;
+        .image-previews {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 15px;
+        }
+
+        .image-preview-item {
+            position: relative;
+            display: inline-block;
+        }
+
+        .image-preview-item img {
+            max-width: 200px;
+            max-height: 150px;
             border-radius: 8px;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .image-preview-item .remove-btn {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #dc3545;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .image-preview-item .remove-btn:hover {
+            background: #c82333;
+        }
+
+        .image-count {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 10px;
         }
 
         .clear-image {
@@ -364,45 +405,53 @@
         <div class="card">
             <h2 class="section-title">
                 <span>📸</span>
-                Upload Roadmap Screenshot
+                Upload Images (up to 3)
             </h2>
 
             <div class="drop-zone" id="dropZone">
                 <div class="drop-zone-content">
                     <div class="drop-zone-icon">⬆️</div>
-                    <div class="drop-zone-text">Drag & drop your roadmap screenshot here</div>
-                    <div class="drop-zone-hint">or click to browse, or paste with Cmd+V</div>
+                    <div class="drop-zone-text">Drag & drop up to 3 images here</div>
+                    <div class="drop-zone-hint">CTO roadmap + Miro board + screenshots • Click to browse or paste with Cmd+V</div>
                 </div>
             </div>
 
-            <input type="file" id="fileInput" accept="image/*">
+            <input type="file" id="fileInput" accept="image/*" multiple>
 
-            <div id="imagePreview" class="image-preview hidden">
-                <img id="previewImg" src="" alt="Preview">
-                <br>
-                <button class="clear-image" onclick="clearImage()">Clear Image</button>
+            <div id="imagePreviewContainer" class="image-preview-container hidden">
+                <div id="imagePreviews" class="image-previews"></div>
+                <button class="clear-image" onclick="clearAllImages()">Clear All Images</button>
             </div>
         </div>
 
-        <!-- Divider -->
+        <!-- Divider - Now shows AND/OR for mixed input -->
         <div class="divider">
-            <span>OR</span>
+            <span>AND / OR</span>
         </div>
 
-        <!-- Code Input Section -->
+        <!-- Text Input Section (Code or Transcript) -->
         <div class="card">
             <h2 class="section-title">
-                <span>💻</span>
-                Paste Code
+                <span>💬</span>
+                Paste Text (Code, Transcript, or Notes)
             </h2>
 
             <textarea
                 id="codeInput"
-                placeholder="Paste your Python, TypeScript, or any code here...
+                placeholder="Paste any text here:
+• Loom transcript summary from a call
+• Code snippets (Python, TypeScript, etc.)
+• Meeting notes or call recap
+• Feature descriptions
 
-Example:
-def calculate_roi(revenue: float, costs: float) -> float:
-    return ((revenue - costs) / costs) * 100
+Example (call transcript):
+John discussed the new dispatch feature. Key pain points:
+- Crews spending 30 min/day on paperwork
+- Jobs falling through the cracks
+- Office staff drowning in phone calls
+
+Coperniq solution: automated dispatch + real-time tracking
+Expected ROI: 2 hours saved per crew per day
 "></textarea>
 
             <!-- Quick Examples -->
@@ -423,14 +472,45 @@ def calculate_roi(revenue: float, costs: float) -> float:
                 <!-- Stage hidden - defaults to demo -->
                 <input type="hidden" id="stageSelect" value="demo">
 
-                <div class="option-group" style="width: 100%;">
+                <div class="option-group">
                     <label for="audienceSelect">Who is this for?</label>
                     <select id="audienceSelect">
-                        <option value="field_crew" selected>Field Crew (Simple infographic)</option>
+                        <option value="c_suite" selected>C-Suite (Executive summary)</option>
                         <option value="business_owner">Business Owner (ROI focus)</option>
-                        <option value="c_suite">C-Suite (Executive summary)</option>
                         <option value="btl_champion">BTL Champion (Operations focus)</option>
-                        <option value="top_tier_vc">Top Tier VC (MVP/UVP pitch)</option>
+                        <option value="top_tier_vc">Top Tier VC (Investment pitch)</option>
+                        <option value="field_crew">Field Crew (Simple, visual)</option>
+                    </select>
+                </div>
+
+                <div class="option-group">
+                    <label for="outputFormatSelect">Output Format</label>
+                    <select id="outputFormatSelect">
+                        <option value="infographic" selected>Infographic (Horizontal 16:9)</option>
+                        <option value="storyboard">Storyboard (Vertical 9:16)</option>
+                    </select>
+                </div>
+
+                <div class="option-group">
+                    <label for="visualStyleSelect">Visual Style</label>
+                    <select id="visualStyleSelect">
+                        <option value="polished" selected>Polished (McKinsey/BCG)</option>
+                        <option value="clean">Clean (Apple keynote)</option>
+                        <option value="photo_realistic">Photo Realistic (LinkedIn)</option>
+                        <option value="minimalist">Minimalist (Sparse)</option>
+                    </select>
+                </div>
+
+                <div class="option-group">
+                    <label for="artistStyleSelect">Artist Style (Fun!)</label>
+                    <select id="artistStyleSelect">
+                        <option value="none" selected>None (Default)</option>
+                        <option value="salvador_dali">Salvador Dali (Surrealist)</option>
+                        <option value="monet">Claude Monet (Impressionist)</option>
+                        <option value="diego_rivera">Diego Rivera (Muralist)</option>
+                        <option value="warhol">Andy Warhol (Pop Art)</option>
+                        <option value="van_gogh">Van Gogh (Post-Impressionist)</option>
+                        <option value="picasso">Picasso (Cubist)</option>
                     </select>
                 </div>
             </div>
@@ -484,7 +564,9 @@ def calculate_roi(revenue: float, costs: float) -> float:
     </div>
 
     <script>
-        let currentImageBase64 = null;
+        // Multi-image support - array of base64 strings
+        let imagesBase64 = [];
+        const MAX_IMAGES = 3;
         let resultImageBase64 = null;
         let examples = [];
 
@@ -532,13 +614,12 @@ def calculate_roi(revenue: float, costs: float) -> float:
 
                 const data = await response.json();
                 document.getElementById('codeInput').value = data.code;
-                clearImage(); // Clear any uploaded image
             } catch (error) {
                 showError(`Failed to load example: ${error.message}`);
             }
         }
 
-        // Setup drop zone
+        // Setup drop zone for multiple files
         function setupDropZone() {
             const dropZone = document.getElementById('dropZone');
             const fileInput = document.getElementById('fileInput');
@@ -560,20 +641,17 @@ def calculate_roi(revenue: float, costs: float) -> float:
                 e.preventDefault();
                 dropZone.classList.remove('drag-over');
 
-                const files = e.dataTransfer.files;
-                if (files.length > 0) {
-                    handleFile(files[0]);
-                }
+                const files = Array.from(e.dataTransfer.files);
+                files.forEach(file => handleFile(file));
             });
 
             fileInput.addEventListener('change', (e) => {
-                if (e.target.files.length > 0) {
-                    handleFile(e.target.files[0]);
-                }
+                const files = Array.from(e.target.files);
+                files.forEach(file => handleFile(file));
             });
         }
 
-        // Setup paste
+        // Setup paste for images
         function setupPaste() {
             document.addEventListener('paste', (e) => {
                 const items = e.clipboardData.items;
@@ -589,47 +667,80 @@ def calculate_roi(revenue: float, costs: float) -> float:
             });
         }
 
-        // Handle file
+        // Handle file - add to array
         function handleFile(file) {
             if (!file.type.startsWith('image/')) {
                 showError('Please upload an image file');
                 return;
             }
 
+            if (imagesBase64.length >= MAX_IMAGES) {
+                showError(`Maximum ${MAX_IMAGES} images allowed. Remove one first.`);
+                return;
+            }
+
             const reader = new FileReader();
             reader.onload = (e) => {
-                currentImageBase64 = e.target.result;
-
-                const preview = document.getElementById('imagePreview');
-                const previewImg = document.getElementById('previewImg');
-
-                previewImg.src = currentImageBase64;
-                preview.classList.remove('hidden');
-
-                // Clear code input when image is uploaded
-                document.getElementById('codeInput').value = '';
+                imagesBase64.push(e.target.result);
+                updateImagePreviews();
             };
-
             reader.readAsDataURL(file);
         }
 
-        // Clear image
-        function clearImage() {
-            currentImageBase64 = null;
-            document.getElementById('imagePreview').classList.add('hidden');
-            document.getElementById('previewImg').src = '';
+        // Update image previews display
+        function updateImagePreviews() {
+            const container = document.getElementById('imagePreviewContainer');
+            const previews = document.getElementById('imagePreviews');
+
+            if (imagesBase64.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
+
+            container.classList.remove('hidden');
+
+            previews.innerHTML = imagesBase64.map((img, index) => `
+                <div class="image-preview-item">
+                    <img src="${img}" alt="Image ${index + 1}">
+                    <button class="remove-btn" onclick="removeImage(${index})">×</button>
+                </div>
+            `).join('');
+
+            // Add count indicator
+            const countHtml = `<div class="image-count">${imagesBase64.length}/${MAX_IMAGES} images</div>`;
+            previews.innerHTML = countHtml + previews.innerHTML;
+        }
+
+        // Remove single image
+        function removeImage(index) {
+            imagesBase64.splice(index, 1);
+            updateImagePreviews();
+        }
+
+        // Clear all images
+        function clearAllImages() {
+            imagesBase64 = [];
+            updateImagePreviews();
             document.getElementById('fileInput').value = '';
         }
 
-        // Generate storyboard
+        // Legacy function for backward compatibility
+        function clearImage() {
+            clearAllImages();
+        }
+
+        // Generate storyboard - supports images, text, or BOTH (mixed input)
         async function generate() {
             const codeInput = document.getElementById('codeInput').value.trim();
             const stage = document.getElementById('stageSelect').value;
             const audience = document.getElementById('audienceSelect').value;
+            const outputFormat = document.getElementById('outputFormatSelect').value;
+            const visualStyle = document.getElementById('visualStyleSelect').value;
+            const artistStyle = document.getElementById('artistStyleSelect').value;
 
-            // Validate input
-            if (!currentImageBase64 && !codeInput) {
-                showError('Please provide either a roadmap screenshot or code');
+            // Validate input - need at least images OR text
+            if (imagesBase64.length === 0 && !codeInput) {
+                showError('Please provide images, text, or both');
                 return;
             }
 
@@ -642,12 +753,27 @@ def calculate_roi(revenue: float, costs: float) -> float:
             try {
                 const payload = {
                     stage: stage,
-                    audience: audience
+                    audience: audience,
+                    output_format: outputFormat,
+                    visual_style: visualStyle
                 };
 
-                if (currentImageBase64) {
-                    payload.image_base64 = currentImageBase64;
-                } else {
+                // Add artist style if selected
+                if (artistStyle && artistStyle !== 'none') {
+                    payload.artist_style = artistStyle;
+                }
+
+                // Support mixed input: images + text together
+                if (imagesBase64.length > 0) {
+                    if (imagesBase64.length === 1) {
+                        payload.image_base64 = imagesBase64[0];
+                    } else {
+                        payload.images_base64 = imagesBase64;
+                    }
+                }
+
+                // Add text content if provided (works alongside images!)
+                if (codeInput) {
                     payload.code = codeInput;
                 }
 

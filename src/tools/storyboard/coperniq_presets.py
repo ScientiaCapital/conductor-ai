@@ -23,13 +23,14 @@ COPERNIQ_BRAND = {
     "tagline": "One platform to run every trade: build, dispatch, service",
     "website": "https://coperniq.io",
 
-    # Visual Identity
+    # Visual Identity (extracted from coperniq.io 2025-12-04)
     "colors": {
-        "primary": "#1a1a2e",       # Dark navy (headers, text)
-        "accent": "#F47E42",         # Burnt orange (CTAs, highlights)
-        "background": "#FFFFFF",     # White
-        "text": "#333333",           # Dark gray
-        "light_gray": "#f8f9fa",     # Backgrounds
+        "primary": "#23433E",        # Dark teal/forest green (CTA buttons, primary actions)
+        "accent": "#2D9688",         # Teal (accent text like "$5M+ Contractors")
+        "text": "#333333",           # Dark gray (body text, logo)
+        "background": "#FDFDFC",     # Off-white (body background)
+        "hero_bg": "#DDEDEB",        # Light mint/sage (hero section background)
+        "light_gray": "#F7F6F3",     # Warm gray (alternate sections)
     },
     "typography": {
         "primary": "Albert Sans",
@@ -311,13 +312,15 @@ COPERNIQ_ICP = {
         ],
     },
     "visual_style": {
-        "colors": ["#1a1a2e", "#F47E42", "#FFFFFF", "#333333"],  # Coperniq: dark navy, burnt orange, white
-        "primary_color": "#1a1a2e",  # Dark navy for headers
-        "accent_color": "#F47E42",   # Burnt orange for CTAs/highlights
+        "colors": ["#23433E", "#2D9688", "#DDEDEB", "#333333", "#FDFDFC"],  # Coperniq: dark teal, teal accent, mint bg, text, off-white
+        "primary_color": "#23433E",  # Dark teal/forest green for CTAs and headers
+        "accent_color": "#2D9688",   # Teal for accent text and highlights
+        "hero_bg": "#DDEDEB",        # Light mint/sage for hero backgrounds
+        "text_color": "#333333",     # Dark gray for body text
         "icons": "Simple, construction-related metaphors (tools, buildings, workers)",
-        "layout": "Clean, scannable, executive-friendly. Grid patterns in backgrounds.",
+        "layout": "Clean, scannable, executive-friendly. Subtle mint backgrounds.",
         "font_style": "Albert Sans or similar. Large, readable, no fine print feel.",
-        "aesthetic": "Modern, professional, enterprise. Corporate but approachable.",
+        "aesthetic": "Modern, professional, teal/green palette. Corporate but approachable.",
     },
 }
 

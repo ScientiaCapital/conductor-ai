@@ -248,6 +248,7 @@ class UnifiedStoryboardTool(BaseTool):
                 - icp_preset: Optional. ICP preset (default: coperniq_mep)
                 - stage: Optional. Storyboard stage (default: preview)
                 - audience: Optional. Target audience (default: c_suite)
+                - output_format: Optional. "infographic" (horizontal) or "storyboard" (vertical)
                 - open_browser: Optional. Open in browser (default: true)
 
         Returns:
@@ -256,6 +257,7 @@ class UnifiedStoryboardTool(BaseTool):
             - understanding: Extracted business insights
             - file_path: Path to saved PNG file
             - input_type: Detected input type
+            - output_format: Format used for generation
         """
         start_time = perf_counter()
 
@@ -273,12 +275,22 @@ class UnifiedStoryboardTool(BaseTool):
         icp_preset = arguments.get("icp_preset", "coperniq_mep")
         stage = arguments.get("stage", "preview")
         audience = arguments.get("audience", "c_suite")
+        output_format = arguments.get("output_format", "infographic")
+        visual_style = arguments.get("visual_style", "polished")
+        artist_style = arguments.get("artist_style")  # Optional: salvador_dali, monet, etc.
         open_browser = arguments.get("open_browser", True)
 
+        # Handle multiple images (input can be a list of base64 strings)
+        is_multi_image = isinstance(input_value, list)
+
         try:
-            # Detect input type
-            input_type = self.detect_input_type(input_value)
-            logger.info(f"Detected input type: {input_type}")
+            # Detect input type (use first item if list)
+            if is_multi_image:
+                input_type = self.detect_input_type(input_value[0])
+                logger.info(f"Detected input type: {input_type} (multi-image: {len(input_value)} images)")
+            else:
+                input_type = self.detect_input_type(input_value)
+                logger.info(f"Detected input type: {input_type}")
 
             # Get content based on input type
             is_image = False
@@ -308,13 +320,23 @@ class UnifiedStoryboardTool(BaseTool):
                 is_image = True
 
             elif input_type == "image_data":
-                # Decode base64 image
-                if "," in input_value:
-                    # Data URL format: data:image/png;base64,XXXX
-                    content = base64.b64decode(input_value.split(",")[1])
+                # Decode base64 image(s)
+                if is_multi_image:
+                    # Multiple images - decode each one
+                    content = []
+                    for img_data in input_value:
+                        if "," in img_data:
+                            content.append(base64.b64decode(img_data.split(",")[1]))
+                        else:
+                            content.append(base64.b64decode(img_data))
+                    logger.info(f"Decoded {len(content)} images for multi-image processing")
                 else:
-                    # Raw base64
-                    content = base64.b64decode(input_value)
+                    if "," in input_value:
+                        # Data URL format: data:image/png;base64,XXXX
+                        content = base64.b64decode(input_value.split(",")[1])
+                    else:
+                        # Raw base64
+                        content = base64.b64decode(input_value)
                 is_image = True
 
             elif input_type == "file_path":
@@ -338,12 +360,21 @@ class UnifiedStoryboardTool(BaseTool):
             # Stage 1: Understand the content
             logger.info("Stage 1: Understanding content...")
             if is_image:
-                assert isinstance(content, bytes)
-                understanding = await self.gemini_client.understand_image(
-                    image_data=content,
-                    icp_preset=icp,
-                    audience=audience,  # Pass string, not persona dict
-                )
+                if isinstance(content, list):
+                    # Multiple images - understand all of them together
+                    logger.info(f"Understanding {len(content)} images together...")
+                    understanding = await self.gemini_client.understand_multiple_images(
+                        images_data=content,
+                        icp_preset=icp,
+                        audience=audience,
+                    )
+                else:
+                    assert isinstance(content, bytes)
+                    understanding = await self.gemini_client.understand_image(
+                        image_data=content,
+                        icp_preset=icp,
+                        audience=audience,  # Pass string, not persona dict
+                    )
             else:
                 assert isinstance(content, str)
                 # Sanitize code content
@@ -355,12 +386,16 @@ class UnifiedStoryboardTool(BaseTool):
                 )
 
             # Stage 2: Generate storyboard
-            logger.info(f"Stage 2: Generating storyboard for audience={audience}...")
+            artist_msg = f", artist_style={artist_style}" if artist_style else ""
+            logger.info(f"Stage 2: Generating {output_format} ({visual_style}{artist_msg}) for audience={audience}...")
             png_bytes = await self.gemini_client.generate_storyboard(
                 understanding=understanding,
                 icp_preset=icp,
                 stage=stage,
                 audience=audience,
+                output_format=output_format,
+                visual_style=visual_style,
+                artist_style=artist_style,
             )
 
             # Save and optionally open in browser
@@ -387,6 +422,8 @@ class UnifiedStoryboardTool(BaseTool):
                 },
                 "file_path": file_path,
                 "input_type": input_type,
+                "output_format": output_format,
+                "visual_style": visual_style,
                 "stage": stage,
                 "audience": audience,
                 "icp_preset": icp_preset,

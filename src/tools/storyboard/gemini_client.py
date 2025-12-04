@@ -319,11 +319,132 @@ Return ONLY valid JSON matching this exact structure:
             logger.error(f"[GEMINI] Image understanding failed: {e}")
             raise
 
+    async def understand_multiple_images(
+        self,
+        images_data: list[bytes],
+        icp_preset: dict[str, Any],
+        audience: str = "c_suite",
+        sanitize_ip: bool = True,
+    ) -> StoryboardUnderstanding:
+        """
+        Stage 1: Analyze multiple images together and extract combined business value.
+
+        Useful for combining CTO roadmap + Miro screenshots + marketing materials
+        into a single cohesive storyboard.
+
+        Args:
+            images_data: List of image bytes (up to 3 images)
+            icp_preset: ICP configuration dictionary
+            audience: Target audience persona
+            sanitize_ip: Whether to apply extra IP sanitization
+
+        Returns:
+            StoryboardUnderstanding with combined insights from all images
+        """
+        self._ensure_client()
+
+        if len(images_data) > 3:
+            logger.warning(f"Received {len(images_data)} images, using first 3 only")
+            images_data = images_data[:3]
+
+        # Build the analysis prompt for multiple images
+        language_guidelines = self._build_language_guidelines(icp_preset)
+        audience_info = icp_preset.get("audience_personas", {}).get(audience, {})
+
+        sanitization_rules = ""
+        if sanitize_ip:
+            sanitization_rules = """
+CRITICAL IP SANITIZATION:
+- DO NOT include any text visible in the images verbatim
+- DO NOT mention specific feature names, product names, or project codes
+- DO NOT reference dates, timelines, or milestones specifically
+- Transform all specifics into general themes
+"""
+
+        prompt = f"""Analyze these {len(images_data)} images TOGETHER and synthesize a UNIFIED business value message.
+
+The images may include:
+- CTO roadmap or planning documents
+- Miro boards or whiteboard screenshots
+- Marketing materials or campaign visuals
+- Product screenshots or demos
+
+Combine insights from ALL images into ONE cohesive storyboard message.
+
+TARGET AUDIENCE: {audience_info.get('title', audience)}
+They care about: {', '.join(audience_info.get('cares_about', ['efficiency', 'results']))}
+
+{language_guidelines}
+
+{sanitization_rules}
+
+EXTRACTION REQUIREMENTS (synthesize from ALL images):
+1. headline: Catchy, benefit-focused headline (8 words max). Capture the overall theme.
+2. what_it_does: Plain English description (2 sentences max). Combine key concepts from all images.
+3. business_value: Quantified benefit. Use real numbers if visible in any image.
+4. who_benefits: Who in the organization benefits most.
+5. differentiator: What makes this special - look across all images for unique value.
+6. pain_point_addressed: The specific problem/frustration this eliminates.
+7. suggested_icon: A simple icon name that represents the overall theme.
+
+CRITICAL: Create ONE unified message, not separate descriptions for each image.
+
+Return ONLY valid JSON matching this exact structure:
+{{
+    "headline": "...",
+    "what_it_does": "...",
+    "business_value": "...",
+    "who_benefits": "...",
+    "differentiator": "...",
+    "pain_point_addressed": "...",
+    "suggested_icon": "..."
+}}"""
+
+        try:
+            from google.genai import types
+
+            # Create image parts for all images
+            content_parts = []
+            for i, img_bytes in enumerate(images_data):
+                image_part = types.Part.from_bytes(
+                    data=img_bytes,
+                    mime_type="image/png",
+                )
+                content_parts.append(image_part)
+                logger.info(f"[GEMINI] Added image {i+1}/{len(images_data)} to multi-image request")
+
+            # Add the prompt at the end
+            content_parts.append(prompt)
+
+            response = self._client.models.generate_content(
+                model=self.config.vision_model,
+                contents=content_parts,
+            )
+
+            # Parse JSON response
+            json_str = response.text.strip()
+            if json_str.startswith("```"):
+                json_str = json_str.split("```")[1]
+                if json_str.startswith("json"):
+                    json_str = json_str[4:]
+                json_str = json_str.strip()
+
+            data = json.loads(json_str)
+            logger.info(f"[GEMINI] Successfully understood {len(images_data)} images together")
+            return StoryboardUnderstanding(**data)
+
+        except Exception as e:
+            logger.error(f"[GEMINI] Multi-image understanding failed: {e}")
+            raise
+
     async def generate_storyboard(
         self,
         understanding: StoryboardUnderstanding,
         stage: str = "preview",
         audience: str = "c_suite",
+        output_format: str = "infographic",
+        visual_style: str = "polished",
+        artist_style: str | None = None,
         icp_preset: dict[str, Any] | None = None,
         custom_style: dict[str, Any] | None = None,
     ) -> bytes:
@@ -337,6 +458,8 @@ Return ONLY valid JSON matching this exact structure:
             understanding: StoryboardUnderstanding from Stage 1
             stage: "preview", "demo", or "shipped" (affects visual style)
             audience: Target audience (top_tier_vc uses different structure)
+            output_format: "infographic" (horizontal 16:9) or "storyboard" (vertical, detailed)
+            visual_style: "clean", "polished", "photo_realistic", or "minimalist"
             icp_preset: Optional ICP preset for visual style
             custom_style: Optional custom style overrides
 
@@ -359,7 +482,7 @@ Return ONLY valid JSON matching this exact structure:
         from datetime import datetime
 
         stage_template = get_stage_template(stage)
-        visual_style = icp_preset.get("visual_style", {})
+        visual_style_config = icp_preset.get("visual_style", {})
         brand = COPERNIQ_BRAND
         persona = get_audience_persona(audience, icp_preset)
 
@@ -413,28 +536,30 @@ BRAND: {brand['company']} - "{brand['tagline']}"
 
 VISUAL REQUIREMENTS:
 - Style: {stage_template.get('visual_style', 'Modern professional')}
-- Color scheme: {brand['company']} brand colors
-  - Primary (headers/text): {visual_style.get('primary_color', '#1a1a2e')} (dark navy)
-  - Accent (highlights/CTAs): {visual_style.get('accent_color', '#F47E42')} (burnt orange)
-  - Background: white with subtle grid pattern
-- Layout: Clean HORIZONTAL infographic with clear visual hierarchy
+- Color scheme: {brand['company']} brand colors (MUST USE THESE EXACT COLORS):
+  - Primary (CTAs/headers): {visual_style_config.get('primary_color', '#23433E')} (dark teal/forest green)
+  - Accent (highlights/emphasis): {visual_style_config.get('accent_color', '#2D9688')} (teal)
+  - Text: {visual_style_config.get('text_color', '#333333')} (dark gray)
+  - Background: {visual_style_config.get('hero_bg', '#DDEDEB')} (light mint/sage green)
+- NO badges, ribbons, or "demo/preview/coming soon" labels - keep it clean and professional
 - Include simple icons representing the content (construction/business metaphors)
 - Large, readable text (executive-friendly)
-- Visual flow from LEFT TO RIGHT (landscape reading)
-- Subtle badge/ribbon showing "{stage_template['badge']}" in top corner
+
+{self._get_format_layout_instructions(output_format)}
+
+{self._get_visual_style_instructions(visual_style)}
+
+{self._get_artist_style_instructions(artist_style) if artist_style else ""}
 
 DESIGN PRINCIPLES:
-- {visual_style.get('aesthetic', 'Modern, professional, enterprise. Corporate but approachable.')}
-- Clean white space with subtle grid backgrounds
+- {visual_style_config.get('aesthetic', 'Modern, professional, teal/green palette. Corporate but approachable.')}
+- Light mint/sage backgrounds with clean white sections
 - Icons should be simple and metaphorical (tools, buildings, charts)
-- No stock photo feel - clean vector/icon style
 - Ready to share in presentations, emails, LinkedIn, or Slack
-- Should look great on screens (16:9 displays)
+- CRITICAL: Use teal/green color palette, NOT orange or blue
+- NO promotional badges or ribbons - this is executive content, not a sales flyer
 
-OUTPUT:
-- Single image, LANDSCAPE 16:9 aspect ratio (widescreen horizontal)
-- 1920x1080 resolution (HD widescreen)
-- PNG format"""
+{self._get_format_output_instructions(output_format)}"""
 
         try:
             from google.genai import types
@@ -470,6 +595,119 @@ OUTPUT:
 - USE these words/phrases: {', '.join(use[:10])}
 - Write for someone with no technical background
 - Focus on benefits, not features"""
+
+    def _get_format_layout_instructions(self, output_format: str) -> str:
+        """Get layout instructions based on output format."""
+        if output_format == "storyboard":
+            return """LAYOUT (VERTICAL STORYBOARD):
+- PORTRAIT orientation - tall, scrollable format
+- Visual flow from TOP TO BOTTOM (vertical reading)
+- Multiple sections stacked vertically
+- Each section tells part of the story
+- Good for detailed explanations and step-by-step narratives
+- Think: LinkedIn article header or presentation slide deck feel"""
+        else:  # infographic (default)
+            return """LAYOUT (HORIZONTAL INFOGRAPHIC):
+- LANDSCAPE orientation - wide, single-view format
+- Visual flow from LEFT TO RIGHT (horizontal reading)
+- Clean, scannable, executive-friendly
+- Key points visible at a glance
+- Good for quick value communication
+- Think: LinkedIn post image or email header"""
+
+    def _get_format_output_instructions(self, output_format: str) -> str:
+        """Get output specifications based on format."""
+        if output_format == "storyboard":
+            return """OUTPUT:
+- Single image, PORTRAIT 9:16 aspect ratio (vertical)
+- 1080x1920 resolution (mobile/story format)
+- PNG format"""
+        else:  # infographic (default)
+            return """OUTPUT:
+- Single image, LANDSCAPE 16:9 aspect ratio (widescreen horizontal)
+- 1920x1080 resolution (HD widescreen)
+- PNG format"""
+
+    def _get_visual_style_instructions(self, visual_style: str) -> str:
+        """Get visual style instructions based on style preference."""
+        styles = {
+            "clean": """VISUAL STYLE: CLEAN
+- Simple flat icons and shapes
+- Minimal decoration, maximum clarity
+- Bold typography, lots of whitespace
+- No gradients or shadows
+- Think: Apple keynote slides""",
+            "polished": """VISUAL STYLE: POLISHED PROFESSIONAL
+- Refined, corporate-quality graphics
+- Subtle gradients and modern touches
+- Professional iconography
+- Balanced composition with visual hierarchy
+- Think: McKinsey or BCG presentation""",
+            "photo_realistic": """VISUAL STYLE: PHOTO-REALISTIC
+- Include realistic imagery and photos
+- High-quality stock photo aesthetic
+- Blend photos with text overlays
+- Modern editorial feel
+- Think: LinkedIn featured image or magazine layout""",
+            "minimalist": """VISUAL STYLE: MINIMALIST
+- Extreme simplicity, sparse elements
+- Maximum whitespace
+- Only essential text and icons
+- Single accent color usage
+- Think: Japanese design or Dieter Rams""",
+        }
+        return styles.get(visual_style, styles["polished"])
+
+    def _get_artist_style_instructions(self, artist_style: str | None) -> str:
+        """Get artist style instructions for fun variations."""
+        if not artist_style:
+            return ""
+
+        artists = {
+            "salvador_dali": """ARTIST STYLE: SALVADOR DALI
+- Surrealist elements and dreamlike quality
+- Melting or distorted shapes (but keep text readable!)
+- Unexpected juxtapositions
+- Rich, warm colors with dramatic lighting
+- Imaginative, thought-provoking visuals
+- Think: The Persistence of Memory meets corporate presentation""",
+            "monet": """ARTIST STYLE: CLAUDE MONET
+- Impressionist brushstroke texture
+- Soft, diffused lighting
+- Pastel and natural color palette
+- Dreamy, atmospheric quality
+- Nature-inspired elements (water lilies, gardens)
+- Think: Water Lilies meets executive summary""",
+            "diego_rivera": """ARTIST STYLE: DIEGO RIVERA
+- Bold muralist style
+- Strong, blocky shapes and forms
+- Workers and industry themes
+- Rich earth tones and vibrant accents
+- Social realism aesthetic
+- Think: Detroit Industry Murals meets tech infographic""",
+            "warhol": """ARTIST STYLE: ANDY WARHOL
+- Pop art boldness
+- High contrast, vibrant colors
+- Repetition and pattern elements
+- Commercial art aesthetic
+- Bold outlines and flat colors
+- Think: Campbell's Soup meets business presentation""",
+            "van_gogh": """ARTIST STYLE: VAN GOGH
+- Expressive brushstroke texture
+- Swirling, dynamic movement
+- Bold, emotional color choices
+- Starry Night energy
+- Intense yellows, blues, and greens
+- Think: Starry Night meets executive dashboard""",
+            "picasso": """ARTIST STYLE: PICASSO (CUBIST)
+- Geometric, fragmented forms
+- Multiple perspectives simultaneously
+- Bold, angular shapes
+- Strong black outlines
+- Analytical cubism meets business graphics
+- Think: Three Musicians meets corporate storyboard""",
+        }
+        return artists.get(artist_style, "")
 
     async def health_check(self) -> dict[str, Any]:
         """

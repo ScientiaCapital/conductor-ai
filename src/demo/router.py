@@ -8,6 +8,7 @@ Endpoints:
 
 from __future__ import annotations
 
+import base64
 import logging
 from pathlib import Path
 from typing import Any, Literal
@@ -16,6 +17,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from src.tools.storyboard.unified_storyboard import UnifiedStoryboardTool
+from src.tools.storyboard.storage import get_storage
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +108,11 @@ class GenerateRequest(BaseModel):
     )
     image_base64: str | None = Field(
         None,
-        description="Base64-encoded image (with or without data URL prefix).",
+        description="Base64-encoded image (with or without data URL prefix). For single image.",
+    )
+    images_base64: list[str] | None = Field(
+        None,
+        description="Multiple base64-encoded images (up to 3). Use for combining CTO roadmap + Miro + campaigns.",
     )
     code: str | None = Field(
         None,
@@ -126,6 +132,18 @@ class GenerateRequest(BaseModel):
         "field_crew",
         description="Target audience persona",
     )
+    output_format: Literal["infographic", "storyboard"] = Field(
+        "infographic",
+        description="Output format: 'infographic' (horizontal 16:9) or 'storyboard' (vertical 9:16)",
+    )
+    visual_style: Literal["clean", "polished", "photo_realistic", "minimalist"] = Field(
+        "polished",
+        description="Visual style: 'clean' (simple icons), 'polished' (professional), 'photo_realistic' (imagery), 'minimalist' (sparse)",
+    )
+    artist_style: str | None = Field(
+        None,
+        description="Optional artist style for fun: 'salvador_dali', 'monet', 'diego_rivera', 'warhol', 'van_gogh', 'picasso'",
+    )
 
 
 class GenerateResponse(BaseModel):
@@ -138,7 +156,14 @@ class GenerateResponse(BaseModel):
     understanding: dict[str, Any] | None = Field(
         None, description="Extracted business insights"
     )
+    storage_url: str | None = Field(
+        None, description="Public URL to stored storyboard (if auto-save enabled)"
+    )
     input_type: str
+    output_format: str
+    visual_style: str
+    artist_style: str | None = None
+    image_count: int = 1
     stage: str
     audience: str
     icp_preset: str
@@ -289,27 +314,41 @@ async def generate_storyboard(request: GenerateRequest) -> GenerateResponse:
         400: Invalid input (missing required fields).
         422: Validation error.
     """
+    # Handle multiple images (up to 3)
+    images_list: list[str] = []
+    image_count = 0
+
+    if request.images_base64 and len(request.images_base64) > 0:
+        # Multiple images provided
+        images_list = [img for img in request.images_base64 if img and img.strip()][:3]
+        image_count = len(images_list)
+    elif request.image_base64 and request.image_base64.strip():
+        # Single image provided
+        images_list = [request.image_base64]
+        image_count = 1
+
     # Auto-infer input_type if not provided
     input_type = request.input_type
     if input_type is None:
-        if request.image_base64 and request.image_base64.strip():
+        if image_count > 0:
             input_type = "image"
         elif request.code and request.code.strip():
             input_type = "code"
         else:
             raise HTTPException(
                 status_code=400,
-                detail="Either 'image_base64' or 'code' must be provided",
+                detail="Either 'image_base64', 'images_base64', or 'code' must be provided",
             )
 
     # Validate input based on type
     if input_type == "image":
-        if not request.image_base64 or not request.image_base64.strip():
+        if image_count == 0:
             raise HTTPException(
                 status_code=400,
-                detail="image_base64 cannot be empty when input_type='image'",
+                detail="At least one image must be provided when input_type='image'",
             )
-        input_value = request.image_base64
+        # For multiple images, pass as list; for single, pass the string
+        input_value = images_list if image_count > 1 else images_list[0]
     else:  # input_type == "code"
         if not request.code or not request.code.strip():
             raise HTTPException(
@@ -320,22 +359,57 @@ async def generate_storyboard(request: GenerateRequest) -> GenerateResponse:
 
     # Run UnifiedStoryboardTool
     tool = UnifiedStoryboardTool()
-    result = await tool.run(
-        {
-            "input": input_value,
-            "icp_preset": request.icp_preset,
-            "stage": request.stage,
-            "audience": request.audience,
-            "open_browser": False,  # Server-side - don't open browser
-        }
-    )
+    tool_args = {
+        "input": input_value,
+        "icp_preset": request.icp_preset,
+        "stage": request.stage,
+        "audience": request.audience,
+        "output_format": request.output_format,
+        "visual_style": request.visual_style,
+        "open_browser": False,  # Server-side - don't open browser
+    }
+
+    # Add artist_style if provided
+    if request.artist_style:
+        tool_args["artist_style"] = request.artist_style
+
+    result = await tool.run(tool_args)
 
     if result.success:
+        storyboard_png = result.result.get("storyboard_png")
+        understanding = result.result.get("understanding")
+        storage_url = None
+
+        # Auto-save to Supabase storage
+        if storyboard_png:
+            try:
+                storage = get_storage()
+                png_bytes = base64.b64decode(storyboard_png)
+                storage_result = await storage.save_storyboard(
+                    png_bytes=png_bytes,
+                    audience=request.audience,
+                    stage=request.stage,
+                    input_type=result.result.get("input_type", input_type),
+                    headline=understanding.get("headline") if understanding else None,
+                    understanding=understanding,
+                )
+                if storage_result:
+                    storage_url = storage_result.get("public_url")
+                    logger.info(f"Storyboard saved to storage: {storage_url}")
+            except Exception as e:
+                logger.warning(f"Failed to save storyboard to storage: {e}")
+                # Continue without storage - don't fail the request
+
         return GenerateResponse(
             success=True,
-            storyboard_png=result.result.get("storyboard_png"),
-            understanding=result.result.get("understanding"),
+            storyboard_png=storyboard_png,
+            understanding=understanding,
+            storage_url=storage_url,
             input_type=result.result.get("input_type", input_type),
+            output_format=request.output_format,
+            visual_style=request.visual_style,
+            artist_style=request.artist_style,
+            image_count=image_count,
             stage=request.stage,
             audience=request.audience,
             icp_preset=request.icp_preset,
@@ -345,6 +419,10 @@ async def generate_storyboard(request: GenerateRequest) -> GenerateResponse:
         return GenerateResponse(
             success=False,
             input_type=input_type,
+            output_format=request.output_format,
+            visual_style=request.visual_style,
+            artist_style=request.artist_style,
+            image_count=image_count,
             stage=request.stage,
             audience=request.audience,
             icp_preset=request.icp_preset,
