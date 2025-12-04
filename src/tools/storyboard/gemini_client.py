@@ -41,7 +41,7 @@ class GeminiConfig:
 
     api_key: str | None = None
     vision_model: str = "gemini-2.0-flash"  # For understanding
-    image_model: str = "gemini-2.0-flash-preview-image-generation"  # For generating
+    image_model: str = "gemini-3-pro-image-preview"  # For generating storyboard images
     timeout: int = 60
     max_retries: int = 3
 

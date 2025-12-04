@@ -20,6 +20,7 @@ class AudiencePersona(str, Enum):
     BUSINESS_OWNER = "business_owner"
     C_SUITE = "c_suite"
     BTL_CHAMPION = "btl_champion"
+    TOP_TIER_VC = "top_tier_vc"
 
 
 class StoryboardStage(str, Enum):
@@ -79,6 +80,38 @@ COPERNIQ_ICP = {
                 "No more chasing down updates",
                 "Be the hero who fixed the coordination problem",
             ],
+        },
+        AudiencePersona.TOP_TIER_VC: {
+            "title": "Top Tier VC Partner (Sequoia, a16z, Founders Fund)",
+            "cares_about": ["TAM/SAM/SOM", "unique value proposition", "defensible moat", "10x better", "founder-market fit"],
+            "tone": "Crisp, insight-dense, pattern-matching focused",
+            "hooks": [
+                "Why now? The market timing is perfect",
+                "This is 10x better than the status quo",
+                "Built by founders who lived this problem",
+                "Clear path to category leadership",
+            ],
+            "uvp_focus": {
+                "must_answer": [
+                    "What unique insight does this team have?",
+                    "Why will this be a $1B+ outcome?",
+                    "What makes this defensible long-term?",
+                    "Why can't incumbents just copy this?",
+                ],
+                "metrics_that_matter": [
+                    "Net Revenue Retention (NRR)",
+                    "CAC payback period",
+                    "Logo retention",
+                    "Expansion revenue %",
+                    "Gross margin trajectory",
+                ],
+                "signals_of_quality": [
+                    "Organic growth / word of mouth",
+                    "Customer pull (not push)",
+                    "Short sales cycles",
+                    "High NPS / customer love",
+                ],
+            },
         },
     },
     "language_style": {

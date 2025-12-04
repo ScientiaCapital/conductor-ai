@@ -197,9 +197,9 @@ Examples:
     )
     parser.add_argument(
         "--audience",
-        choices=["business_owner", "c_suite", "btl_champion"],
+        choices=["business_owner", "c_suite", "btl_champion", "top_tier_vc"],
         default="c_suite",
-        help="Target audience (default: c_suite)",
+        help="Target audience: c_suite, business_owner, btl_champion, or top_tier_vc (for VC pitches)",
     )
     parser.add_argument(
         "--no-browser",

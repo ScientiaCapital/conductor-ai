@@ -118,7 +118,7 @@ class GenerateRequest(BaseModel):
         "preview",
         description="Storyboard stage for BDR cadence",
     )
-    audience: Literal["business_owner", "c_suite", "btl_champion"] = Field(
+    audience: Literal["business_owner", "c_suite", "btl_champion", "top_tier_vc"] = Field(
         "c_suite",
         description="Target audience persona",
     )
