@@ -204,3 +204,35 @@ class KnowledgeCache:
     def is_loaded(self) -> bool:
         """Check if cache is loaded."""
         return self._loaded
+
+    def get_company_context(self) -> dict[str, str]:
+        """
+        Get company context from knowledge base.
+
+        Returns empty dict if no company info stored - prompts work without it.
+        This is intentional: zero hardcoding philosophy.
+        """
+        # Company context would come from a company_info knowledge type
+        # For now, return empty - let model use its training
+        return {
+            "company_name": "",
+            "tagline": "",
+            "target_market": "",
+        }
+
+    def get_proof_points(self) -> list[str]:
+        """
+        Get proof points/metrics for marketing.
+
+        Returns metrics from knowledge base, or empty list.
+        """
+        return self.metrics.copy()
+
+    def get_quotes_for_audience(self, audience: str) -> list[str]:
+        """
+        Get customer quotes, optionally filtered by audience.
+
+        Returns up to 5 quotes for prompt context.
+        """
+        # For now, quotes aren't audience-tagged, return all
+        return self.quotes[:5]

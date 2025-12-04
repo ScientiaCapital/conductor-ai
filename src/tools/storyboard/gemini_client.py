@@ -357,7 +357,7 @@ class GeminiStoryboardClient:
                 }
             ],
             "max_tokens": 4096,
-            "temperature": 0.3,
+            "temperature": 0.5,  # Higher for creative extraction
         }
 
         logger.info(f"[QWEN] Calling {self.config.qwen_model} via OpenRouter")
@@ -387,7 +387,7 @@ class GeminiStoryboardClient:
                 }
             ],
             "max_tokens": 4096,
-            "temperature": 0.3,
+            "temperature": 0.5,  # Higher for creative extraction
         }
 
         logger.info(f"[DEEPSEEK] Calling {self.config.deepseek_model} via OpenRouter")
@@ -498,99 +498,70 @@ Return ONLY valid JSON matching this exact structure:
     async def understand_code(
         self,
         code_content: str,
-        icp_preset: dict[str, Any],
+        icp_preset: dict[str, Any] | None = None,
         audience: str = "c_suite",
         file_name: str | None = None,
     ) -> StoryboardUnderstanding:
         """
         Stage 1: Analyze code and extract business value.
 
-        Uses Gemini Vision to "read" the code and extract:
-        - What it does (plain English)
-        - Business value proposition
-        - Who benefits (ICP alignment)
-        - Key differentiator
+        Minimal constraints - let the model find what matters.
+        Zero hardcoded company/product info.
 
         Args:
             code_content: Source code as string
-            icp_preset: ICP configuration dictionary
+            icp_preset: Optional ICP config (ignored - kept for API compatibility)
             audience: Target audience persona
             file_name: Optional file name for context
 
         Returns:
             StoryboardUnderstanding with extracted insights
         """
-        # Build the analysis prompt with knowledge enrichment
-        language_guidelines = self._build_language_guidelines(icp_preset, audience)
+        # Build dynamic context from knowledge cache only
         knowledge_context = self._build_knowledge_context(audience)
-        audience_info = icp_preset.get("audience_personas", {}).get(audience, {})
+        language_guidelines = self._build_language_guidelines_minimal(audience)
+        value_angle_instruction = self._get_value_angle_instruction(audience)
 
-        prompt = f"""Analyze this code file and extract business value for a {icp_preset.get('target', 'business')} audience.
+        prompt = f"""Analyze this code and extract business value.
 
 {f"File: {file_name}" if file_name else ""}
 
 CODE:
 ```
-{code_content[:8000]}  # Truncate very long files
+{code_content[:8000]}
 ```
 
-TARGET AUDIENCE: {audience_info.get('title', audience)}
-They care about: {', '.join(audience_info.get('cares_about', ['efficiency', 'results']))}
+TARGET AUDIENCE: {audience}
 
-{language_guidelines}
+{knowledge_context if knowledge_context else ""}
 
-{knowledge_context}
+{language_guidelines if language_guidelines else ""}
 
-EXTRACTION REQUIREMENTS:
-1. raw_extracted_text: EXTRACT the key technical elements from this code:
-   - Main class/function names and their purpose
-   - Core business logic (e.g., "calculates optimal route", "validates permits")
-   - Key integrations or data sources
-   Example: "VideoScriptGeneratorTool: generates 60-sec Loom scripts using DeepSeek V3. Inputs: prospect_company, industry, pain_point. Outputs: script with hook/demo/cta sections."
+EXTRACT:
+- What does this code do (plain English)?
+- Who benefits from this?
+- What problem does it solve?
+- What makes it special?
 
-2. extraction_confidence: How well did you understand this code? (0.0-1.0)
-   - 1.0 = Completely understood the business purpose
-   - 0.8 = Understood most of it
-   - 0.5 = Only partially understood
-   - Below 0.5 = Could not determine purpose
-
-3. headline: Catchy, benefit-focused headline (8 words max). Derived from what the code ACTUALLY does.
-   NOT ALLOWED: "Transform How You Work" or generic phrases
-
-4. tagline: Create a UNIQUE tagline for THIS specific code (10 words max). Examples:
-   - For scheduling features: "Never miss a job. Never double-book again."
-   - For payment tools: "Get paid faster. Spend less time chasing checks."
-   - For field tools: "Your crew's best friend, rain or shine."
-   The tagline should be specific to what THIS code does - NOT generic contractor messaging.
-
-5. what_it_does: Plain English description (2 sentences max). Based on ACTUAL code logic.
-   NOT ALLOWED: "A powerful capability that makes your work easier"
-
-6. business_value: Quantified benefit. Use real numbers if possible (hours saved, % improvement).
-7. who_benefits: Who in the organization benefits most from this.
-8. differentiator: What makes this special compared to doing it manually.
-9. pain_point_addressed: The specific problem/frustration this eliminates.
-10. suggested_icon: A simple icon name that represents this (e.g., "clock", "dollar", "team").
+{value_angle_instruction}
 
 CRITICAL RULES:
-- EXTRACT from the actual code - do NOT make generic statements
-- NO technical jargon in the OUTPUT (but DO understand the code technically)
-- Write like you're explaining to a smart 5th grader
-- Focus on BENEFITS not FEATURES
-- The tagline MUST be unique to the content - never use generic phrases
+- NEVER include personal names - use roles/personas (e.g., "Operations Team" not "John")
+- ALWAYS derive business value - infer from the problem being solved
+- If value isn't explicit, INFER it
 
-Return ONLY valid JSON matching this exact structure:
+Return JSON:
 {{
-    "raw_extracted_text": "...",
-    "extraction_confidence": 0.9,
-    "headline": "...",
-    "tagline": "...",
-    "what_it_does": "...",
-    "business_value": "...",
-    "who_benefits": "...",
-    "differentiator": "...",
-    "pain_point_addressed": "...",
-    "suggested_icon": "..."
+    "raw_extracted_text": "Key technical elements: classes, functions, logic",
+    "extraction_confidence": 0.0-1.0,
+    "headline": "Benefit-focused headline (8 words max)",
+    "tagline": "Unique to THIS code (10 words max)",
+    "what_it_does": "Plain English (2 sentences max)",
+    "business_value": "ALWAYS provide value - quantified if possible, inferred if not",
+    "who_benefits": "Role/persona titles ONLY - NO personal names",
+    "differentiator": "What makes it special",
+    "pain_point_addressed": "Problem solved",
+    "suggested_icon": "Simple icon name"
 }}"""
 
         try:
@@ -653,115 +624,69 @@ Return ONLY valid JSON matching this exact structure:
     async def understand_transcript(
         self,
         transcript: str,
-        icp_preset: dict[str, Any],
+        icp_preset: dict[str, Any] | None = None,
         audience: str = "c_suite",
         context: str | None = None,
     ) -> StoryboardUnderstanding:
         """
-        Stage 1: Analyze call transcript/notes and extract persona-specific insights.
+        Stage 1: Extract insights from transcript with minimal constraints.
 
-        Designed for Loom transcripts, call summaries, meeting notes.
-        Uses FULL transcript (up to 32K chars) and extracts SPECIFIC details.
+        Let the model find what matters. Zero hardcoded company/product info.
 
         Args:
-            transcript: Full transcript text (longer than code - up to 32K)
-            icp_preset: ICP configuration dictionary
-            audience: Target audience persona - affects extraction focus
-            context: Optional context (e.g., "Sales demo call", "Discovery call")
+            transcript: Full transcript text (up to 32K chars)
+            icp_preset: Optional ICP config (ignored - kept for API compatibility)
+            audience: Target audience for tone/focus
+            context: Optional context (e.g., "Sales call", "Demo")
 
         Returns:
             StoryboardUnderstanding with insights extracted FROM the transcript
         """
-        # Build persona-specific extraction requirements
-        audience_info = icp_preset.get("audience_personas", {}).get(audience, {})
-        persona_hooks = audience_info.get("hooks", [])
-        persona_cares = audience_info.get("cares_about", [])
+        # Build dynamic knowledge context (from cache, or empty)
+        knowledge_context = self._build_knowledge_context(audience)
+        language_guidelines = self._build_language_guidelines_minimal(audience)
 
-        # Get Coperniq value props to map against
-        value_props = icp_preset.get("value_props", {})
-        proof_points = icp_preset.get("brand", {}).get("proof_points", {})
+        # Get value angle for this audience
+        value_angle_instruction = self._get_value_angle_instruction(audience)
 
-        # Persona-specific extraction focus
-        persona_extraction = self._get_persona_extraction_focus(audience, audience_info)
+        prompt = f"""Extract key insights from this content.
 
-        prompt = f"""You are analyzing a CALL TRANSCRIPT or MEETING NOTES for Coperniq, a software platform for MEP & Energy contractors.
+{f"CONTEXT: {context}" if context else ""}
 
-{f"CONTEXT: {context}" if context else "CONTEXT: Call transcript / meeting notes"}
-
-=== TRANSCRIPT (EXTRACT SPECIFIC DETAILS FROM THIS) ===
+CONTENT:
 {transcript[:32000]}
-=== END TRANSCRIPT ===
 
-YOUR TASK: Extract SPECIFIC insights from this transcript that will resonate with a {audience_info.get('title', audience)} audience.
+TARGET AUDIENCE: {audience}
 
-TARGET PERSONA: {audience_info.get('title', audience)}
-- They care about: {', '.join(persona_cares)}
-- Tone: {audience_info.get('tone', 'Professional')}
-- Hooks that work: {', '.join(persona_hooks[:2])}
+{knowledge_context if knowledge_context else ""}
 
-{persona_extraction}
+{language_guidelines if language_guidelines else ""}
 
-COPERNIQ VALUE PROPS TO MAP AGAINST (use these if relevant to transcript):
-- Core: {', '.join(value_props.get('core', ['Projects', 'Dispatch', 'PPM']))}
-- AI Features: {', '.join(value_props.get('ai', ['Receptionist AI', 'Project Copilot']))}
-- Proof Points: {proof_points.get('completion_rate', '99% completion')} | {proof_points.get('payment_speed', '65% faster')}
+EXTRACTION PRIORITIES:
+- Preserve EXACT quotes and specific numbers
+- Note speaker ROLES (not personal names - generalize to "Field Tech", "Project Manager", "Operations Team")
+- Find what would resonate with {audience}
+- ALWAYS derive business value - infer it from context if not explicitly stated
 
-EXTRACTION REQUIREMENTS (pull SPECIFIC details from transcript - THIS IS CRITICAL):
-1. raw_extracted_text: VERBATIM extraction from the transcript:
-   - Key quotes and phrases the prospect used
-   - All numbers mentioned (dollars, hours, percentages)
-   - Company names, tools mentioned, pain points described
-   - Names and roles of people mentioned
-   Example: "Prospect: 'We lose about $3K per job on change orders.' PM: 'My guys are still using Excel, I can't get them off it.' Numbers: $3K/job, 8 field crews, 50 projects/month."
+{value_angle_instruction}
 
-2. extraction_confidence: How much of the transcript did you understand? (0.0-1.0)
-   - 1.0 = Clear transcript, extracted key points
-   - 0.8 = Mostly clear
-   - 0.5 = Partial audio issues or unclear
+CRITICAL RULES:
+- NEVER output "Not mentioned in transcript" - always derive/infer value
+- NEVER include personal names - use titles/roles/personas instead (e.g., "Operations Team" not "John and Sarah")
+- If value isn't explicit, INFER it from the problem being solved
 
-3. headline: Use EXACT words/phrases from the call. (8 words max)
-   BAD: "Streamline Operations" (generic)
-   GOOD: "Stop Losing $3K Per Job to Spreadsheets" (their words + their numbers)
-   NOT ALLOWED: "Transform How You Work" or generic phrases
-
-4. tagline: Build from THEIR pain point, not generic contractor pain. (10 words max)
-   BAD: "One platform for contractors" (generic)
-   GOOD: "Finally get your PM off Excel and home by 5pm" (their situation)
-   NOT ALLOWED: "Built for contractors" or other canned phrases
-
-5. what_it_does: Summarize using THEIR words and situation.
-   NOT ALLOWED: "A powerful capability that makes your work easier"
-
-6. business_value: Use SPECIFIC numbers from transcript.
-   - If they said "we lose 2 hours a day" → use "2 hours/day"
-   - If they said "$50K in change orders" → use "$50K"
-   - DO NOT generalize to "save time and money"
-
-7. who_benefits: Who specifically in the organization was mentioned?
-8. differentiator: What made this stand out vs their current way (from transcript)?
-9. pain_point_addressed: Use THEIR EXACT WORDS for the pain point.
-10. suggested_icon: Icon representing the main theme.
-
-CRITICAL RULES (BULLETPROOF EXTRACTION):
-- If they said it, USE IT. Do not paraphrase away specifics.
-- Numbers are GOLD - preserve every number exactly as stated.
-- Names and roles are GOLD - preserve who said what.
-- The CEO/CTO will review this - it MUST match what was said.
-- If you cannot find specific content, say "Not mentioned in transcript"
-- NEVER output generic phrases like "save time and money" if they gave you specifics.
-
-Return ONLY valid JSON matching this exact structure:
+Return JSON:
 {{
-    "raw_extracted_text": "...",
-    "extraction_confidence": 0.9,
-    "headline": "...",
-    "tagline": "...",
-    "what_it_does": "...",
-    "business_value": "...",
-    "who_benefits": "...",
-    "differentiator": "...",
-    "pain_point_addressed": "...",
-    "suggested_icon": "..."
+    "raw_extracted_text": "Key quotes, numbers, specifics from content",
+    "extraction_confidence": 0.0-1.0,
+    "headline": "Punchy headline from content (8 words max)",
+    "tagline": "Unique to this content (10 words max)",
+    "what_it_does": "Plain English (2 sentences max)",
+    "business_value": "ALWAYS provide value - quantified if possible, inferred if not",
+    "who_benefits": "Role/persona titles ONLY (e.g., 'Field Crews', 'Operations Teams') - NO personal names",
+    "differentiator": "What stands out",
+    "pain_point_addressed": "Problem solved",
+    "suggested_icon": "Simple icon name"
 }}"""
 
         try:
@@ -835,19 +760,19 @@ Return ONLY valid JSON matching this exact structure:
     async def understand_image(
         self,
         image_data: bytes | str,
-        icp_preset: dict[str, Any],
+        icp_preset: dict[str, Any] | None = None,
         audience: str = "c_suite",
         sanitize_ip: bool = True,
     ) -> StoryboardUnderstanding:
         """
-        Stage 1: Analyze image (Miro screenshot, roadmap) and extract business value.
+        Stage 1: Analyze image and extract business value.
 
-        Uses Qwen VL (via OpenRouter) or Gemini Vision based on config.
-        Extra sanitization for IP protection when analyzing roadmaps.
+        Minimal constraints - let the model find what matters.
+        Zero hardcoded company/product info.
 
         Args:
             image_data: Image bytes or base64 string
-            icp_preset: ICP configuration dictionary
+            icp_preset: Optional ICP config (ignored - kept for API compatibility)
             audience: Target audience persona
             sanitize_ip: Whether to apply extra IP sanitization
 
@@ -863,84 +788,48 @@ Return ONLY valid JSON matching this exact structure:
         else:
             image_bytes = image_data
 
-        # Build the analysis prompt with knowledge enrichment
-        language_guidelines = self._build_language_guidelines(icp_preset, audience)
+        # Build dynamic context from knowledge cache only
         knowledge_context = self._build_knowledge_context(audience)
-        audience_info = icp_preset.get("audience_personas", {}).get(audience, {})
+        language_guidelines = self._build_language_guidelines_minimal(audience)
+        value_angle_instruction = self._get_value_angle_instruction(audience)
 
-        # FULL EXTRACTION - Pull EVERYTHING from the image
-        # Professional language transformation happens in generate_storyboard(), not here
-        extraction_rules = """
-EXTRACTION RULES - Pull EVERYTHING from the image (THIS IS CRITICAL):
-- EXTRACT every feature name, product area, and label visible
-- INCLUDE all metrics, dates, percentages, numbers EXACTLY as shown
-- PRESERVE hierarchy/structure (e.g., "5 product clouds", "3 phases")
-- USE exact terminology as written (e.g., "Receptionist AI BETA", "Document Engine V1")
-- For roadmaps: capture timing (Q1/Q2/H1), version labels (BETA, V1, V2)
-- For Miro boards: extract workflow steps, connections, labels
-- For diagrams: capture all boxes, arrows, connections
+        prompt = f"""Analyze this image and extract ALL content.
 
-The GENERATION phase will transform this into professional, external-ready output.
-EXTRACT FULLY NOW - sanitization happens later.
-"""
-
-        prompt = f"""Analyze this image and EXTRACT ALL CONTENT for business messaging.
-
-CRITICAL: You MUST extract the ACTUAL content from this image.
+CRITICAL: Extract the ACTUAL content from this image.
 Do NOT generate generic copy. Do NOT make things up.
-If you cannot read something clearly, say so in raw_extracted_text.
 
-TARGET AUDIENCE: {audience_info.get('title', audience)}
-They care about: {', '.join(audience_info.get('cares_about', ['efficiency', 'results']))}
+TARGET AUDIENCE: {audience}
 
-{knowledge_context}
+{knowledge_context if knowledge_context else ""}
 
-{language_guidelines}
+{language_guidelines if language_guidelines else ""}
 
-{extraction_rules}
+EXTRACT:
+- Every label, feature name, number visible
+- Hierarchy/structure if present
+- Timing, versions, phases if shown
+- Workflow steps, connections, relationships
 
-EXTRACTION REQUIREMENTS (extract ACTUAL content from the image):
-1. raw_extracted_text: LIST EVERYTHING visible in the image. Every label, every feature name, every number.
-   Example for a roadmap: "Coperniq Intelligence: Receptionist AI BETA Q1, AI Agent Builder BETA Q1, Design AI BETA Q2. Sales Cloud: Catalog 2.0 V2, Proposals V1..."
-   Example for Miro: "Workflow: Lead capture → Qualification → Proposal → Close. Labels: Hot Lead, Warm Lead, Cold Lead..."
+{value_angle_instruction}
 
-2. extraction_confidence: How confident are you that you read the image correctly? (0.0-1.0)
-   - 1.0 = Crystal clear, read everything
-   - 0.8 = Most content clear, some fuzzy
-   - 0.5 = Significant portions unclear
-   - Below 0.5 = Low quality, may need re-upload
+CRITICAL RULES:
+- NEVER output "Not mentioned in transcript/image" - always INFER from context
+- NEVER include personal names - use roles/personas (e.g., "Project Managers" not "John")
+- ALWAYS derive business value and problem solved - infer from what you see
+- If something isn't explicit, INFER it from the context
 
-3. headline: Extract the MAIN theme from the image using ACTUAL words visible. (8 words max)
-   Example from roadmap: "5 Product Clouds Launching H1 2026"
-   Example from Miro: "Lead-to-Close Workflow in 4 Steps"
-   NOT ALLOWED: "Transform How You Work" or other generic phrases
-
-4. tagline: Create tagline FROM what you extracted, not generic messaging. (10 words max)
-   Example: "From AI Receptionist to Three-Phase Inverters"
-   NOT ALLOWED: "Built for contractors" or other canned phrases
-
-5. what_it_does: Describe the SPECIFIC features/areas shown. Name them explicitly.
-   Example: "Coperniq Intelligence brings Receptionist AI and AI Agent Builder in Q1, followed by Design AI in Q2."
-   NOT ALLOWED: "A powerful capability that makes your work easier"
-
-6. business_value: Use SPECIFIC numbers from the image if present.
-7. who_benefits: Based on what you see, who would use this?
-8. differentiator: What makes THIS specific content special?
-9. pain_point_addressed: What problem does THIS specific content solve?
-10. suggested_icon: Icon representing what you see (e.g., "calendar", "robot", "truck").
-
-Return ONLY valid JSON matching this exact structure:
+Return JSON:
 {{
-    "raw_extracted_text": "...",
-    "extraction_confidence": 0.9,
-    "headline": "...",
-    "tagline": "...",
-    "what_it_does": "...",
-    "business_value": "...",
-    "who_benefits": "...",
-    "differentiator": "...",
-    "pain_point_addressed": "...",
-    "suggested_icon": "..."
+    "raw_extracted_text": "Everything visible: labels, names, numbers",
+    "extraction_confidence": 0.0-1.0,
+    "headline": "Main theme from image (8 words max)",
+    "tagline": "Unique to THIS content (10 words max)",
+    "what_it_does": "Specific features/areas shown",
+    "business_value": "INFER value from what this enables - never say 'not mentioned'",
+    "who_benefits": "Role/persona titles ONLY - NO personal names",
+    "differentiator": "What makes this special",
+    "pain_point_addressed": "INFER the problem this solves - never say 'not mentioned'",
+    "suggested_icon": "Icon representing content"
 }}"""
 
         try:
@@ -987,19 +876,19 @@ Return ONLY valid JSON matching this exact structure:
     async def understand_multiple_images(
         self,
         images_data: list[bytes],
-        icp_preset: dict[str, Any],
+        icp_preset: dict[str, Any] | None = None,
         audience: str = "c_suite",
         sanitize_ip: bool = True,
     ) -> StoryboardUnderstanding:
         """
-        Stage 1: Analyze multiple images together and extract combined business value.
+        Stage 1: Analyze multiple images and extract combined business value.
 
-        Useful for combining CTO roadmap + Miro screenshots + marketing materials
-        into a single cohesive storyboard.
+        Minimal constraints - let the model find what matters.
+        Zero hardcoded company/product info.
 
         Args:
             images_data: List of image bytes (up to 3 images)
-            icp_preset: ICP configuration dictionary
+            icp_preset: Optional ICP config (ignored - kept for API compatibility)
             audience: Target audience persona
             sanitize_ip: Whether to apply extra IP sanitization
 
@@ -1010,91 +899,49 @@ Return ONLY valid JSON matching this exact structure:
             logger.warning(f"Received {len(images_data)} images, using first 3 only")
             images_data = images_data[:3]
 
-        # Build the analysis prompt for multiple images with knowledge enrichment
-        language_guidelines = self._build_language_guidelines(icp_preset, audience)
+        # Build dynamic context from knowledge cache only
         knowledge_context = self._build_knowledge_context(audience)
-        audience_info = icp_preset.get("audience_personas", {}).get(audience, {})
+        language_guidelines = self._build_language_guidelines_minimal(audience)
+        value_angle_instruction = self._get_value_angle_instruction(audience)
 
-        # FULL EXTRACTION - Pull EVERYTHING from ALL images
-        # Professional language transformation happens in generate_storyboard(), not here
-        extraction_rules = """
-EXTRACTION RULES - Pull EVERYTHING from ALL images (THIS IS CRITICAL):
-- EXTRACT every feature name, product area, and label visible in EACH image
-- INCLUDE all metrics, dates, percentages, numbers EXACTLY as shown
-- PRESERVE hierarchy/structure (e.g., "5 product clouds", "3 phases")
-- USE exact terminology as written (e.g., "Receptionist AI BETA", "Document Engine V1")
-- For roadmaps: capture timing (Q1/Q2/H1), version labels (BETA, V1, V2)
-- For Miro boards: extract workflow steps, connections, labels
-- For diagrams: capture all boxes, arrows, connections
+        prompt = f"""Analyze these {len(images_data)} images and extract ALL content.
 
-EXTRACT FROM EACH IMAGE SEPARATELY FIRST, then synthesize.
-The GENERATION phase will transform this into professional, external-ready output.
-"""
-
-        prompt = f"""Analyze these {len(images_data)} images and EXTRACT ALL CONTENT from each one.
-
-CRITICAL: You MUST extract the ACTUAL content from each image.
+CRITICAL: Extract ACTUAL content from each image.
 Do NOT generate generic copy. Do NOT make things up.
-If you cannot read something clearly, say so in raw_extracted_text.
 
-The images may include:
-- CTO roadmap or planning documents
-- Miro boards or whiteboard screenshots
-- Marketing materials or campaign visuals
-- Product screenshots or demos
+TARGET AUDIENCE: {audience}
 
-TARGET AUDIENCE: {audience_info.get('title', audience)}
-They care about: {', '.join(audience_info.get('cares_about', ['efficiency', 'results']))}
+{knowledge_context if knowledge_context else ""}
 
-{knowledge_context}
+{language_guidelines if language_guidelines else ""}
 
-{language_guidelines}
+EXTRACT FROM EACH IMAGE:
+- Every label, feature name, number visible
+- Hierarchy/structure if present
+- Timing, versions, phases if shown
+- Workflow steps, connections, relationships
 
-{extraction_rules}
+{value_angle_instruction}
 
-EXTRACTION REQUIREMENTS (extract from EACH image, then synthesize):
-1. raw_extracted_text: LIST EVERYTHING visible across ALL images. Organize by image:
-   "IMAGE 1 (Roadmap): Coperniq Intelligence: Receptionist AI BETA Q1, AI Agent Builder BETA Q1..."
-   "IMAGE 2 (Miro): Workflow steps: Lead → Qualify → Propose → Close..."
-   "IMAGE 3 (Campaign): Headline: Get Paid Faster, Subhead: 65% faster payment collection..."
+Then SYNTHESIZE into unified message.
 
-2. extraction_confidence: How confident are you that you read ALL images correctly? (0.0-1.0)
-   - 1.0 = All images crystal clear
-   - 0.8 = Most content clear
-   - 0.5 = Significant portions unclear
+CRITICAL RULES:
+- NEVER output "Not mentioned" - always INFER from context
+- NEVER include personal names - use roles/personas
+- ALWAYS derive business value and problem solved
 
-3. headline: Extract/synthesize MAIN theme using ACTUAL words from the images. (8 words max)
-   Example: "5 Product Clouds Plus Lead-to-Close Workflow"
-   NOT ALLOWED: "Transform How You Work" or other generic phrases
-
-4. tagline: Create tagline FROM what you extracted across images. (10 words max)
-   Example: "From AI Receptionist to Closed Deal in 4 Steps"
-   NOT ALLOWED: "Built for contractors" or other canned phrases
-
-5. what_it_does: Describe SPECIFIC features/areas shown across images. Name them explicitly.
-   Example: "Combines Coperniq Intelligence (Receptionist AI, Agent Builder) with streamlined lead workflow..."
-   NOT ALLOWED: "A powerful capability that makes your work easier"
-
-6. business_value: Use SPECIFIC numbers from any image if present.
-7. who_benefits: Based on what you see across images, who would use this?
-8. differentiator: What makes THIS combined content special?
-9. pain_point_addressed: What problem does THIS content solve?
-10. suggested_icon: Icon representing the combined theme.
-
-CRITICAL: Synthesize into ONE unified message, but base it on ACTUAL extracted content.
-
-Return ONLY valid JSON matching this exact structure:
+Return JSON:
 {{
-    "raw_extracted_text": "...",
-    "extraction_confidence": 0.9,
-    "headline": "...",
-    "tagline": "...",
-    "what_it_does": "...",
-    "business_value": "...",
-    "who_benefits": "...",
-    "differentiator": "...",
-    "pain_point_addressed": "...",
-    "suggested_icon": "..."
+    "raw_extracted_text": "IMAGE 1: [content]... IMAGE 2: [content]...",
+    "extraction_confidence": 0.0-1.0,
+    "headline": "Synthesized theme (8 words max)",
+    "tagline": "Unique to THIS content (10 words max)",
+    "what_it_does": "Specific features across images",
+    "business_value": "Numbers from images if present",
+    "who_benefits": "Who would use this",
+    "differentiator": "What makes this special",
+    "pain_point_addressed": "Problem solved",
+    "suggested_icon": "Icon representing theme"
 }}"""
 
         try:
@@ -1197,9 +1044,14 @@ Return ONLY valid JSON matching this exact structure:
         unique_seed = f"{datetime.now().isoformat()}-{uuid.uuid4().hex[:8]}"
 
         # Build audience-specific content structure
+        # Get dynamic proof points from knowledge cache
+        knowledge_context = self._build_knowledge_context(audience)
+
+        # Build persona-specific generation context (value angle, what they care about)
+        persona_context = self._build_persona_generation_context(audience, persona)
+
         if audience == "top_tier_vc":
             # VC/Investor storyboard - flexible investment thesis
-            proof = brand.get("proof_points", {})
 
             # Include raw extraction for richer context
             raw_context = ""
@@ -1211,6 +1063,8 @@ SOURCE MATERIAL (use to derive specific insights):
 
             content_section = f"""CONTENT FOR INVESTOR AUDIENCE:
 
+{persona_context}
+
 WHAT WE EXTRACTED:
 - Core Insight: "{understanding.headline}"
 - Problem Space: "{understanding.pain_point_addressed}"
@@ -1219,42 +1073,27 @@ WHAT WE EXTRACTED:
 - Business Value: "{understanding.business_value}"
 {raw_context}
 
-PROOF POINTS (weave in naturally, don't force all):
-- {proof.get('completion_rate', 'High completion rates')}
-- {proof.get('payment_speed', 'Faster payment cycles')}
-- {proof.get('scale_story', 'Scales without adding headcount')}
-
-INVESTOR MINDSET (what they care about):
-- Is this a big market? Why now?
-- What's defensible? What compounds over time?
-- Show traction/momentum, not features
-- Data and metrics speak louder than adjectives
-
-TONE: Confident, data-driven, thesis-focused. Like a founder who knows their numbers cold.
+{knowledge_context if knowledge_context else ""}
 
 CREATIVE FREEDOM: Design the visual however best tells this story.
 You choose the layout, sections, and flow. No rigid template required.
-Make it visually compelling - this could end up in a pitch deck.
-
-FORBIDDEN (never include):
-- "Book a demo", "Get started", "Contact sales", "Free trial"
-- Customer testimonials or case study quotes
-- Feature walkthroughs or how-to content
-- Marketing buzzwords (revolutionary, game-changing, best-in-class)"""
+Make it visually compelling - this could end up in a pitch deck."""
         else:
             # Customer-focused storyboard (sales, internal, field crew)
-            # NO badges - these are for LinkedIn/email graphics, not live demos
 
             # Include raw extraction for context (if available)
             raw_context = ""
             if understanding.raw_extracted_text:
                 raw_context = f"""
-RAW EXTRACTION (for context - transform into marketing language):
+RAW EXTRACTION (for context):
 {understanding.raw_extracted_text[:500]}
-Extraction Confidence: {understanding.extraction_confidence}
 """
 
             content_section = f"""CONTENT TO DISPLAY:
+
+{persona_context}
+
+WHAT WE EXTRACTED:
 - Headline: "{understanding.headline}"
 - Description: "{understanding.what_it_does}"
 - Value Proposition: "{understanding.business_value}"
@@ -1264,32 +1103,15 @@ Extraction Confidence: {understanding.extraction_confidence}
 
 {raw_context}
 
-PROFESSIONAL LANGUAGE (CRITICAL):
-Write in clear, direct business language - NOT marketing-speak:
-- Feature names are OK to use (e.g., "Receptionist AI", "Document Engine", "Partner Portal")
+{knowledge_context if knowledge_context else ""}
+
+GUIDELINES:
+- Write clear, direct business language
 - Transform technical details → business outcomes
-- Remove internal codes, version numbers (BETA, V1 → just the feature name)
-- Keep it SPECIFIC to what was extracted, NOT generic messaging
+- Keep it SPECIFIC to what was extracted
+- Derive messaging from the extracted content
 
-FORBIDDEN LANGUAGE (NEVER USE):
-- "marketing campaign", "marketing strategy", "brand awareness"
-- "promotional", "advertising", "drive engagement"
-- "target audience", "buyer persona", "customer journey"
-- "content marketing", "lead generation campaigns"
-- Any internal marketing/sales team language
-
-USE INSTEAD:
-- Direct product benefits ("AI answers calls 24/7")
-- Specific outcomes ("Save 5 hours/week", "Get paid 65% faster")
-- Feature names ("Receptionist AI", "Document Engine")
-- Customer pain points solved ("No more missed calls")
-
-NEVER output generic copy like "Transform How You Work" or "Save time and money"
-ALWAYS derive messaging from the specific content that was extracted.
-If the headline says "EXTRACTION FAILED", display an error state instead.
-
-TARGET AUDIENCE: {persona.get('title', 'Business Professional')}
-TONE: {persona.get('tone', 'Professional and friendly')}"""
+NEVER output generic copy. ALWAYS use specifics from the extraction."""
 
         # Use dynamic tagline from understanding (falls back to brand tagline if not set)
         dynamic_tagline = understanding.tagline if understanding.tagline else brand['tagline']
@@ -1413,6 +1235,152 @@ DESIGN PRINCIPLES:
             return "\n".join(sections)
         except Exception:
             return ""  # Graceful degradation
+
+    def _get_value_angle_instruction(self, audience: str) -> str:
+        """
+        Get value angle framing instruction for extraction based on audience.
+
+        This ensures the extraction phase knows HOW to frame value:
+        - COI (Cost of Inaction): What they LOSE by not acting
+        - ROI (Return on Investment): What they GAIN by acting
+        - EASE: How much simpler their life becomes
+        """
+        value_angles = {
+            "business_owner": """VALUE FRAMING: COI (Cost of Inaction)
+Frame value as what they LOSE by not having this:
+- Lost revenue, wasted time, missed opportunities
+- Pain they continue to suffer without it
+- "Every day without this costs you..."
+""",
+            "c_suite": """VALUE FRAMING: ROI (Return on Investment)
+Frame value as what they GAIN from this:
+- Measurable returns: dollars saved, hours reclaimed, % improvement
+- Competitive advantage, scalability, data insights
+- "This delivers X return on Y investment"
+""",
+            "btl_champion": """VALUE FRAMING: COI (Cost of Inaction)
+Frame value as risk/pain of NOT having this:
+- How it makes them look bad to leadership
+- Daily frustrations that continue without it
+- "Without this, you'll keep dealing with..."
+""",
+            "top_tier_vc": """VALUE FRAMING: ROI (Return on Investment)
+Frame value as investment opportunity:
+- Market size, growth potential, defensible moat
+- Traction metrics, expansion potential
+- "This represents X opportunity with Y traction"
+""",
+            "field_crew": """VALUE FRAMING: EASE (Simplicity)
+Frame value as making their job EASIER:
+- Less paperwork, faster completion, get home on time
+- Simple, practical benefits they'll actually use
+- "This means less hassle and faster work"
+""",
+        }
+        return value_angles.get(audience, value_angles["c_suite"])
+
+    def _build_language_guidelines_minimal(self, audience: str) -> str:
+        """
+        Build minimal language guidelines from knowledge cache only.
+
+        Zero hardcoding - only uses dynamic data from knowledge cache.
+        Returns empty string if cache not loaded or empty.
+        """
+        try:
+            from src.knowledge.cache import KnowledgeCache
+            cache = KnowledgeCache.get()
+            if not cache.is_loaded():
+                return ""
+
+            knowledge = cache.get_language_guidelines(audience)
+            avoid = knowledge.get("avoid", [])[:10]
+            use = knowledge.get("use", [])[:10]
+
+            if not avoid and not use:
+                return ""
+
+            parts = []
+            if avoid:
+                parts.append(f"AVOID: {', '.join(avoid)}")
+            if use:
+                parts.append(f"USE: {', '.join(use)}")
+
+            return "\n".join(parts)
+        except Exception:
+            return ""  # Graceful degradation
+
+    def _build_persona_generation_context(self, audience: str, persona: dict) -> str:
+        """
+        Build persona-specific context for image generation.
+
+        Uses the rich persona data from presets to guide Nano Banana's
+        creative output - making each persona feel distinct.
+        """
+        value_angle = persona.get("value_angle", "ROI")
+        value_framing = persona.get("value_framing", "")
+        cares_about = persona.get("cares_about", [])
+        hooks = persona.get("hooks", [])
+        title = persona.get("title", audience)
+        tone = persona.get("tone", "Professional")
+
+        # Field Crew: Special handling with simplified design
+        if audience == "field_crew":
+            style = persona.get("infographic_style", {})
+            return f"""AUDIENCE: {title}
+THEY CARE ABOUT: {', '.join(cares_about)}
+VALUE ANGLE: EASE - make their job easier, no ROI/savings talk
+DESIGN APPROACH: {style.get('design', 'Simple icons, big text, minimal words')}
+LANGUAGE RULES:
+- {chr(10).join('- ' + r for r in style.get('language_rules', ['Use 5th grade vocabulary'])[:3])}
+FRAMING: {value_framing}
+TONE: {tone}"""
+
+        # C-Suite: Numbers and data focus
+        if audience == "c_suite":
+            return f"""AUDIENCE: {title}
+THEY CARE ABOUT: {', '.join(cares_about)}
+VALUE ANGLE: ROI - show the math, the metrics, the return
+DESIGN APPROACH: Clean data visualization, numbers prominent, executive summary feel
+FRAMING: {value_framing}
+HOOKS THAT RESONATE: {'; '.join(hooks[:2])}
+TONE: {tone}"""
+
+        # Business Owner: Emotional, pain→solution
+        if audience == "business_owner":
+            return f"""AUDIENCE: {title}
+THEY CARE ABOUT: {', '.join(cares_about)}
+VALUE ANGLE: COI (Cost of Inaction) - what they LOSE by not acting
+DESIGN APPROACH: Emotional hook, show the pain → solution story, relatable
+FRAMING: {value_framing}
+HOOKS THAT RESONATE: {'; '.join(hooks[:2])}
+TONE: {tone}"""
+
+        # BTL Champion: Day-in-life practical
+        if audience == "btl_champion":
+            return f"""AUDIENCE: {title}
+THEY CARE ABOUT: {', '.join(cares_about)}
+VALUE ANGLE: COI - career risk of missing this, look good to boss
+DESIGN APPROACH: Day-in-life scenarios, practical benefits, before/after
+FRAMING: {value_framing}
+HOOKS THAT RESONATE: {'; '.join(hooks[:2])}
+TONE: {tone}"""
+
+        # VC/Investor: Investment thesis
+        if audience == "top_tier_vc":
+            return f"""AUDIENCE: {title}
+THEY CARE ABOUT: {', '.join(cares_about)}
+VALUE ANGLE: ROI - market opportunity, defensibility, return profile
+DESIGN APPROACH: Investment thesis format, market/traction/moat sections
+FRAMING: {value_framing}
+AVOID: Book a demo, contact sales, free trial, marketing buzzwords
+TONE: {tone}"""
+
+        # Default fallback
+        return f"""AUDIENCE: {title}
+THEY CARE ABOUT: {', '.join(cares_about) if cares_about else 'results, efficiency'}
+VALUE ANGLE: {value_angle}
+FRAMING: {value_framing}
+TONE: {tone}"""
 
     def _get_format_layout_instructions(self, output_format: str) -> str:
         """Get layout instructions based on output format."""

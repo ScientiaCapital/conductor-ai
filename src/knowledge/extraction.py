@@ -34,7 +34,7 @@ class ExtractorConfig:
     model: str = "deepseek/deepseek-chat-v3"
 
     # Extraction settings
-    temperature: float = 0.3  # Low for consistent extraction
+    temperature: float = 0.6  # Higher for creative extraction
     max_tokens: int = 4096
 
     def __post_init__(self):
@@ -42,87 +42,51 @@ class ExtractorConfig:
             self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
 
 
-EXTRACTION_PROMPT = """You are a knowledge extraction specialist for Coperniq, a software platform for MEP contractors (plumbers, electricians, HVAC, solar installers).
+EXTRACTION_PROMPT = """Extract reusable knowledge from this content.
 
-Your job is to extract specific, reusable knowledge from the content provided. This knowledge will be used to generate marketing materials and storyboards.
-
-CONTENT TO ANALYZE:
+CONTENT:
 ---
 {content}
 ---
 
-CONTEXT (if available): {context}
+CONTEXT: {context}
 
-EXTRACTION INSTRUCTIONS:
+FIND AND EXTRACT:
+- Pain points (frustrations - preserve exact words)
+- Metrics (numbers: dollars, hours, percentages, counts)
+- Quotes (verbatim statements worth reusing)
+- Features/capabilities mentioned
+- Language that resonates (approved terms)
+- Objections or concerns raised
+- Competitors mentioned
+- Use cases discussed
 
-1. PAIN POINTS - Extract specific customer pain points mentioned:
-   - Use EXACT words when possible ("we lose $3K per job")
-   - Include specific numbers, timeframes, frustrations
-   - Focus on problems Coperniq solves
+For each finding, note:
+- Type (pain_point, metric, quote, feature, approved_term, objection, competitor, use_case)
+- Content (verbatim when applicable)
+- Confidence (0.0-1.0)
+- Speaker/company if known
+- Relevant audience if obvious
 
-2. METRICS - Extract any numbers, statistics, or quantifiable data:
-   - Dollar amounts ("$3K/job", "$50K in change orders")
-   - Time ("5 hours/week", "2 days per permit")
-   - Percentages ("65% faster", "30% more profitable")
-   - Counts ("200 jobs per year", "15 technicians")
-
-3. QUOTES - Extract verbatim quotes that are powerful/reusable:
-   - Must be exact words (or very close)
-   - Should express pain, desire, or satisfaction clearly
-   - Note the speaker's role if known
-
-4. FEATURES - Extract Coperniq features or product areas mentioned:
-   - Feature names (Receptionist AI, Document Engine)
-   - Product areas (Intelligence, Sales Cloud, PM Cloud)
-   - Capabilities described
-
-5. APPROVED TERMS - Extract language that resonated well:
-   - Phrases the customer agreed with or repeated
-   - Simple, benefit-focused language
-   - Avoid jargon
-
-6. OBJECTIONS - Extract sales objections or concerns:
-   - Price concerns
-   - Integration worries
-   - Change resistance
-   - Competitor comparisons
-
-7. COMPETITOR mentions - Note any competitors mentioned:
-   - Name and context
-   - What they do well/poorly (from customer view)
-
-8. USE CASES - Extract specific use cases discussed:
-   - Industry + problem + solution pattern
-   - Example: "solar permit tracking"
-
-RESPONSE FORMAT (JSON):
+Return JSON:
 {{
     "extractions": [
         {{
             "knowledge_type": "pain_point|metric|quote|feature|approved_term|objection|competitor|use_case",
-            "content": "The extracted knowledge (verbatim when applicable)",
-            "context": "Surrounding context or explanation",
+            "content": "Extracted knowledge",
+            "context": "Surrounding context",
             "verbatim": true/false,
             "confidence_score": 0.0-1.0,
             "speaker_name": "Name if known",
-            "speaker_role": "Role if known (CEO, PM, Owner, etc.)",
+            "speaker_role": "Role if known",
             "company_name": "Company if known",
-            "audience": ["c_suite", "business_owner", "btl_champion", "field_crew"],
-            "industries": ["solar", "hvac", "electrical", "plumbing", "roofing", "mep"],
-            "product_areas": ["Intelligence", "Sales Cloud", "PM Cloud", "Financial Cloud", "Asset Cloud"]
+            "audience": [],
+            "industries": [],
+            "product_areas": []
         }}
     ],
-    "summary": "Brief summary of what was extracted"
-}}
-
-QUALITY RULES:
-- Only extract knowledge that is SPECIFIC and REUSABLE
-- Prefer EXACT QUOTES over paraphrasing
-- Include confidence_score (0.7+ for clear extractions, lower for inferred)
-- Skip generic or vague content
-- Focus on contractor-relevant insights
-
-Return valid JSON only, no markdown."""
+    "summary": "Brief summary"
+}}"""
 
 
 class KnowledgeExtractor:

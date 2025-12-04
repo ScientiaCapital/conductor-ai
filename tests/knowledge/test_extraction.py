@@ -25,7 +25,7 @@ class TestExtractorConfig:
             config = ExtractorConfig()
             assert config.openrouter_api_key == "test-key"
             assert config.model == "deepseek/deepseek-chat-v3"
-            assert config.temperature == 0.3
+            assert config.temperature == 0.6  # Higher for creative extraction
 
     def test_explicit_key(self):
         config = ExtractorConfig(openrouter_api_key="explicit-key")
@@ -49,7 +49,8 @@ class TestExtractionPrompt:
         assert "{context}" in EXTRACTION_PROMPT
 
     def test_prompt_mentions_knowledge_types(self):
-        for kt in ["PAIN POINTS", "METRICS", "QUOTES", "FEATURES"]:
+        # New minimal prompt uses lowercase
+        for kt in ["Pain points", "Metrics", "Quotes", "Features"]:
             assert kt in EXTRACTION_PROMPT
 
     def test_prompt_requests_json(self):
