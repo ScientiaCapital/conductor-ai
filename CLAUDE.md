@@ -9,9 +9,36 @@
 
 ## Current Status (2025-12-04)
 
+### Phase 7.7: Persona Differentiation with COI/ROI/EASE - COMPLETE
+**Branch**: `main`
+**Tests**: 260 storyboard+knowledge tests
+
+Each persona now gets distinctly different output through value angle framing.
+
+✅ **Value Angle System** (`src/tools/storyboard/gemini_client.py`)
+| Audience | Value Angle | Framing |
+|----------|-------------|---------|
+| business_owner | COI (Cost of Inaction) | What they LOSE by not acting |
+| c_suite | ROI (Return on Investment) | What they GAIN from this |
+| btl_champion | COI | Risk/pain of NOT having this |
+| top_tier_vc | ROI | Investment opportunity framing |
+| field_crew | EASE | Making their job simpler |
+
+✅ **Persona Generation Context** (`_build_persona_generation_context()`)
+- Rich persona data (cares_about, hooks, value_framing) now injected into generation
+- Field Crew gets special handling: simple icons, 5th grade vocabulary
+- C-Suite gets data visualization, numbers prominent
+
+✅ **Extraction Rules** (all understand_* methods)
+- NEVER output "Not mentioned in transcript" - must INFER
+- NEVER use personal names - generalize to roles/personas
+- Value angle framing injected at extraction phase
+
+---
+
 ### Phase 7.5: Knowledge → Storyboard Integration - COMPLETE
 **Branch**: `main`
-**Tests**: 58 knowledge tests (727 total)
+**Tests**: 58 knowledge tests
 
 Knowledge Brain now feeds directly into storyboard generation for dynamic, learning-based content.
 
@@ -84,12 +111,12 @@ INGEST → EXTRACT (LLM) → STORE (Supabase)
 - `success_story` - Customer wins
 
 ### Today's Work Summary (2025-12-04)
-- **Knowledge → Storyboard Integration**: KnowledgeCache singleton with startup preload
-- **SQL Migrations**: All 4 migrations (001-004) completed in Supabase
-- **Prompt Enrichment**: Language guidelines + knowledge context injected into understand methods
-- **Graceful Degradation**: Storyboards work even if knowledge cache fails to load
-- **VC Storyboard Polish**: Removed rigid 6-section template, enabled creative freedom for GTM/LinkedIn
-- **Tests**: 15 new cache tests, 58 total knowledge tests, 727 total project tests
+- **Phase 7.7 Persona Differentiation**: COI/ROI/EASE value angles per persona
+- **Value Angle Extraction**: All understand_* methods now include value framing instructions
+- **Extraction Rules**: Never output "Not mentioned", never use personal names
+- **Generation Context**: Rich persona data (cares_about, hooks) injected into Nano Banana prompts
+- **Cleanup**: Deleted unused src/tools/scientia/ module (1264 lines)
+- **Tests**: 260 storyboard+knowledge tests passing
 
 ### Key Architectural Patterns
 
@@ -122,6 +149,27 @@ Input → [FULL EXTRACTION] → Specific understanding → [MARKETING TRANSFORM]
 ✅ FLEXIBLE: "INVESTOR MINDSET: What's defensible? Show traction. CREATIVE FREEDOM: Design however best tells this story."
 ```
 Give the model guardrails (forbidden words, tone) but let it choose structure and layout.
+
+**Value Angle Framing** (COI/ROI/EASE)
+```python
+def _get_value_angle_instruction(self, audience: str) -> str:
+    """
+    COI (Cost of Inaction): What they LOSE by not acting
+    ROI (Return on Investment): What they GAIN from this
+    EASE: How much simpler their life becomes
+    """
+    # business_owner, btl_champion → COI
+    # c_suite, top_tier_vc → ROI
+    # field_crew → EASE
+```
+Use at both EXTRACTION and GENERATION phases for consistent persona differentiation.
+
+**Extraction Critical Rules** (Never Violate)
+```
+1. NEVER output "Not mentioned in transcript" - must INFER from context
+2. NEVER use personal names - generalize to roles/personas
+3. ALWAYS derive business value - even if not explicitly stated
+```
 
 ## Completed Phases
 
