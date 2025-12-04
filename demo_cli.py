@@ -17,7 +17,7 @@ EXAMPLES = {
     "video_script_generator": "src/tools/video/video_script_generator.py",
     "unified_storyboard": "src/tools/storyboard/unified_storyboard.py",
     "video_scheduler": "src/tools/video/video_scheduler.py",
-    "loom_tracker": "src/tools/video/loom_view_tracker.py",
+    "video_generator": "src/tools/video/video_generator.py",
     "gemini_client": "src/tools/storyboard/gemini_client.py",
 }
 
