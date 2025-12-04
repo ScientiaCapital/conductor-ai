@@ -341,8 +341,8 @@ class UnifiedStoryboardTool(BaseTool):
                 assert isinstance(content, bytes)
                 understanding = await self.gemini_client.understand_image(
                     image_data=content,
-                    icp=icp,
-                    persona=persona,
+                    icp_preset=icp,
+                    audience=persona,
                 )
             else:
                 assert isinstance(content, str)
@@ -350,8 +350,8 @@ class UnifiedStoryboardTool(BaseTool):
                 sanitized = sanitize_content(content, icp)
                 understanding = await self.gemini_client.understand_code(
                     code_content=sanitized,
-                    icp=icp,
-                    persona=persona,
+                    icp_preset=icp,
+                    audience=persona,
                 )
 
             # Stage 2: Generate storyboard
