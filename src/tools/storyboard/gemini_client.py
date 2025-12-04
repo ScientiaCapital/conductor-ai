@@ -1137,7 +1137,18 @@ ALWAYS derive messaging from the specific content that was extracted.
 If the headline says "EXTRACTION FAILED", display an error state instead.
 
 TARGET AUDIENCE: {persona.get('title', 'Business Professional')}
-TONE: {persona.get('tone', 'Professional and friendly')}"""
+TONE: {persona.get('tone', 'Professional and friendly')}
+VALUE ANGLE: {persona.get('value_angle', 'ROI')}
+VALUE FRAMING: {persona.get('value_framing', 'Show the business impact')}"""
+
+            # Add value angle guidance based on persona
+            value_angle = persona.get('value_angle', 'ROI')
+            if value_angle == 'COI':
+                content_section += "\n\nFocus on COST OF INACTION: What are they LOSING every day by not acting? Loss aversion hits harder than gain."
+            elif value_angle == 'EASE':
+                content_section += "\n\nFocus on EASE: Just make their day easier. No budget talk, no ROI math. Simple = better."
+            else:  # ROI
+                content_section += "\n\nFocus on ROI: Show the math, the payback, the return. Numbers justify the decision."
 
         # Use dynamic tagline from understanding (falls back to brand tagline if not set)
         dynamic_tagline = understanding.tagline if understanding.tagline else brand['tagline']

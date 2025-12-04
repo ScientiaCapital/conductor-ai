@@ -121,6 +121,9 @@ COPERNIQ_ICP = {
             "title": "Business Owner / Founder",
             "cares_about": ["profit", "growth", "less headaches", "family time"],
             "tone": "Direct, bottom-line focused, respect their time",
+            # COI: Loss aversion hits harder - "what you're losing every day"
+            "value_angle": "COI",  # Cost of Inaction - emphasize what they LOSE by not acting
+            "value_framing": "Every day without this = money walking out the door. Your competitors already figured this out.",
             "hooks": [
                 "Stop losing money on jobs you thought were profitable",
                 "Your competition is already using this",
@@ -131,6 +134,9 @@ COPERNIQ_ICP = {
             "title": "CEO / CFO / COO",
             "cares_about": ["ROI", "competitive edge", "scalability", "data-driven decisions"],
             "tone": "Strategic, numbers-focused, executive-level",
+            # ROI: They need numbers for the board, spreadsheet justification
+            "value_angle": "ROI",  # Return on Investment - show the math
+            "value_framing": "Here's the math: X invested → Y returned. Payback in Z months.",
             "hooks": [
                 "See your entire operation at a glance",
                 "Make decisions based on real data, not gut feelings",
@@ -141,6 +147,9 @@ COPERNIQ_ICP = {
             "title": "Project Manager / Operations Manager",
             "cares_about": ["easier day-to-day", "looking good to boss", "less fire-fighting"],
             "tone": "Empathetic, practical, day-in-the-life focused",
+            # COI: "Your boss will ask why you didn't bring this up sooner"
+            "value_angle": "COI",  # Cost of Inaction - career risk of missing this
+            "value_framing": "Every fire you're fighting today? There's a tool that prevents it. Your boss will wonder why you didn't find it sooner.",
             "hooks": [
                 "Your crews will actually use this",
                 "No more chasing down updates",
@@ -151,6 +160,9 @@ COPERNIQ_ICP = {
             "title": "Investor / VC / Angel",
             "cares_about": ["big market opportunity", "why this team wins", "what's defensible", "momentum signals"],
             "tone": "Confident founder energy. Data backs up the vision. No fluff, no sales pitch.",
+            # ROI: Unit economics, market size, return potential
+            "value_angle": "ROI",  # Return on Investment - show the opportunity
+            "value_framing": "Here's the market. Here's why we win. Here's the return profile.",
             "hooks": [
                 # These are starting points - Gemini should riff on the actual content
                 "Here's what contractors deal with every day",
@@ -173,6 +185,9 @@ COPERNIQ_ICP = {
             "title": "Field Crew / Technicians / Blue Collar Workers",
             "cares_about": ["making my job easier", "not looking stupid", "getting home on time", "less paperwork"],
             "tone": "Super simple, friendly, visual-first - explain like I'm 10",
+            # EASE: They don't control the budget - just show it makes life easier
+            "value_angle": "EASE",  # Not ROI or COI - just "this makes your day better"
+            "value_framing": "Less hassle. Less paperwork. Get home on time.",
             "hooks": [
                 "This makes your job way easier",
                 "No more paperwork headaches",
