@@ -40,8 +40,8 @@ class GeminiConfig:
     """Configuration for Gemini client."""
 
     api_key: str | None = None
-    vision_model: str = "gemini-2.0-flash"  # For understanding
-    image_model: str = "gemini-3-pro-image-preview"  # For generating storyboard images
+    vision_model: str = "models/gemini-2.0-flash"  # For understanding
+    image_model: str = "models/gemini-3-pro-image-preview"  # For generating storyboard images (Nano Banana)
     timeout: int = 60
     max_retries: int = 3
 
@@ -348,11 +348,19 @@ Return ONLY valid JSON matching this exact structure:
         if icp_preset is None:
             icp_preset = COPERNIQ_ICP
 
+        import uuid
+        from datetime import datetime
+
         stage_template = get_stage_template(stage)
         visual_style = icp_preset.get("visual_style", {})
 
+        # Add uniqueness to avoid cached/repetitive outputs
+        unique_seed = f"{datetime.now().isoformat()}-{uuid.uuid4().hex[:8]}"
+
         # Build the image generation prompt
-        prompt = f"""Create a professional one-page executive storyboard infographic.
+        prompt = f"""Create a UNIQUE professional one-page executive storyboard infographic.
+
+GENERATION SEED: {unique_seed} (use this to create variation in layout and icons)
 
 CONTENT TO DISPLAY:
 - Badge: "{stage_template['badge']}"
