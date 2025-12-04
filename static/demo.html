@@ -795,8 +795,20 @@ Expected ROI: 2 hours saved per crew per day
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || 'Generation failed');
+                    // Try to parse as JSON, fall back to text
+                    let errorMsg = 'Generation failed';
+                    try {
+                        const errorData = await response.json();
+                        errorMsg = errorData.detail || errorData.error || 'Generation failed';
+                    } catch (e) {
+                        // Response was not JSON, try to get text
+                        try {
+                            errorMsg = await response.text();
+                        } catch (e2) {
+                            errorMsg = `Server error (${response.status})`;
+                        }
+                    }
+                    throw new Error(errorMsg);
                 }
 
                 const result = await response.json();

@@ -955,13 +955,17 @@ DESIGN PRINCIPLES:
                     )
                     break
                 except Exception as e:
-                    error_str = str(e)
-                    if "503" in error_str or "UNAVAILABLE" in error_str or "overloaded" in error_str.lower():
-                        if attempt < max_retries - 1:
-                            wait_time = (attempt + 1) * 5
-                            logger.warning(f"[GEMINI] Model overloaded (503), waiting {wait_time}s")
-                            await asyncio.sleep(wait_time)
-                            continue
+                    error_str = str(e).lower()
+                    # Retry on common transient errors
+                    is_retryable = any(x in error_str for x in [
+                        "503", "unavailable", "overloaded", "server error",
+                        "500", "internal", "temporarily", "rate limit", "quota"
+                    ])
+                    if is_retryable and attempt < max_retries - 1:
+                        wait_time = (attempt + 1) * 5
+                        logger.warning(f"[GEMINI] Transient error, waiting {wait_time}s: {e}")
+                        await asyncio.sleep(wait_time)
+                        continue
                     raise
 
             for part in response.candidates[0].content.parts:

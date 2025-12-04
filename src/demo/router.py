@@ -437,7 +437,23 @@ async def generate_storyboard(request: GenerateRequest) -> GenerateResponse:
     if request.artist_style:
         tool_args["artist_style"] = request.artist_style
 
-    result = await tool.run(tool_args)
+    try:
+        result = await tool.run(tool_args)
+    except Exception as e:
+        logger.error(f"Storyboard tool error: {e}")
+        return GenerateResponse(
+            success=False,
+            input_type=input_type,
+            output_format=request.output_format,
+            visual_style=request.visual_style,
+            artist_style=request.artist_style,
+            image_count=image_count,
+            stage=request.stage,
+            audience=request.audience,
+            icp_preset=request.icp_preset,
+            execution_time_ms=0,
+            error=f"Generation error: {str(e)}",
+        )
 
     if not result.success:
         return GenerateResponse(
