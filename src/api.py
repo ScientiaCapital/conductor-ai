@@ -10,7 +10,9 @@ Endpoints:
 
 from __future__ import annotations
 
+import logging
 import os
+from contextlib import asynccontextmanager
 from typing import Any
 
 import httpx
@@ -28,9 +30,33 @@ from src.agents.schemas import (
 )
 from src.agents.state import StateManager
 from src.demo.router import router as demo_router
+from src.knowledge.cache import KnowledgeCache
 from src.storyboard.router import router as storyboard_router
 from src.tools.base import ToolCategory
 from src.tools.registry import ToolRegistry
+
+logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Lifespan: Startup/Shutdown Events
+# ============================================================================
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup and shutdown events for the application."""
+    # Startup: Load knowledge cache
+    cache = KnowledgeCache.get()
+    try:
+        await cache.load()
+        logger.info(f"Knowledge cache loaded: {cache.stats()}")
+    except Exception as e:
+        logger.warning(f"Knowledge cache failed to load (non-fatal): {e}")
+        # Non-fatal - storyboards still work with static presets
+
+    yield
+
+    # Shutdown: Nothing to clean up (cache is just memory)
 
 
 # ============================================================================
@@ -41,6 +67,7 @@ app = FastAPI(
     title="Conductor-AI Agent API",
     description="Multi-provider LLM agent orchestration with ReAct pattern",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # Include routers

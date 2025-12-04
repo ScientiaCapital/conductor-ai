@@ -123,15 +123,20 @@ ALTER TABLE tool_executions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE leads ENABLE ROW LEVEL SECURITY;
 
 -- Policy for service role (full access)
-CREATE POLICY IF NOT EXISTS "Service role full access audit_logs"
+-- Drop existing policies first (PostgreSQL doesn't support IF NOT EXISTS for policies)
+DROP POLICY IF EXISTS "Service role full access audit_logs" ON audit_logs;
+DROP POLICY IF EXISTS "Service role full access tool_executions" ON tool_executions;
+DROP POLICY IF EXISTS "Service role full access leads" ON leads;
+
+CREATE POLICY "Service role full access audit_logs"
     ON audit_logs FOR ALL
     USING (auth.role() = 'service_role');
 
-CREATE POLICY IF NOT EXISTS "Service role full access tool_executions"
+CREATE POLICY "Service role full access tool_executions"
     ON tool_executions FOR ALL
     USING (auth.role() = 'service_role');
 
-CREATE POLICY IF NOT EXISTS "Service role full access leads"
+CREATE POLICY "Service role full access leads"
     ON leads FOR ALL
     USING (auth.role() = 'service_role');
 

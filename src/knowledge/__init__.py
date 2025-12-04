@@ -40,6 +40,7 @@ from src.knowledge.base import (
     KnowledgeType,
     SourceType,
 )
+from src.knowledge.cache import KnowledgeCache
 from src.knowledge.extraction import KnowledgeExtractor
 from src.knowledge.close_crm import CloseCRMIngester
 from src.knowledge.service import KnowledgeIngestionService
@@ -49,6 +50,7 @@ __all__ = [
     "KnowledgeSource",
     "KnowledgeType",
     "SourceType",
+    "KnowledgeCache",
     "KnowledgeExtractor",
     "CloseCRMIngester",
     "KnowledgeIngestionService",

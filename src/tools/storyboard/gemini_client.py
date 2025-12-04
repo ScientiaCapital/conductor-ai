@@ -402,8 +402,9 @@ class GeminiStoryboardClient:
         Returns:
             StoryboardUnderstanding with extracted insights
         """
-        # Build the analysis prompt
-        language_guidelines = self._build_language_guidelines(icp_preset)
+        # Build the analysis prompt with knowledge enrichment
+        language_guidelines = self._build_language_guidelines(icp_preset, audience)
+        knowledge_context = self._build_knowledge_context(audience)
         audience_info = icp_preset.get("audience_personas", {}).get(audience, {})
 
         prompt = f"""Analyze this code file and extract business value for a {icp_preset.get('target', 'business')} audience.
@@ -419,6 +420,8 @@ TARGET AUDIENCE: {audience_info.get('title', audience)}
 They care about: {', '.join(audience_info.get('cares_about', ['efficiency', 'results']))}
 
 {language_guidelines}
+
+{knowledge_context}
 
 EXTRACTION REQUIREMENTS:
 1. raw_extracted_text: EXTRACT the key technical elements from this code:
@@ -725,8 +728,9 @@ Return ONLY valid JSON matching this exact structure:
         else:
             image_bytes = image_data
 
-        # Build the analysis prompt
-        language_guidelines = self._build_language_guidelines(icp_preset)
+        # Build the analysis prompt with knowledge enrichment
+        language_guidelines = self._build_language_guidelines(icp_preset, audience)
+        knowledge_context = self._build_knowledge_context(audience)
         audience_info = icp_preset.get("audience_personas", {}).get(audience, {})
 
         # FULL EXTRACTION - Pull EVERYTHING from the image
@@ -753,6 +757,8 @@ If you cannot read something clearly, say so in raw_extracted_text.
 
 TARGET AUDIENCE: {audience_info.get('title', audience)}
 They care about: {', '.join(audience_info.get('cares_about', ['efficiency', 'results']))}
+
+{knowledge_context}
 
 {language_guidelines}
 
@@ -860,8 +866,9 @@ Return ONLY valid JSON matching this exact structure:
             logger.warning(f"Received {len(images_data)} images, using first 3 only")
             images_data = images_data[:3]
 
-        # Build the analysis prompt for multiple images
-        language_guidelines = self._build_language_guidelines(icp_preset)
+        # Build the analysis prompt for multiple images with knowledge enrichment
+        language_guidelines = self._build_language_guidelines(icp_preset, audience)
+        knowledge_context = self._build_knowledge_context(audience)
         audience_info = icp_preset.get("audience_personas", {}).get(audience, {})
 
         # FULL EXTRACTION - Pull EVERYTHING from ALL images
@@ -894,6 +901,8 @@ The images may include:
 
 TARGET AUDIENCE: {audience_info.get('title', audience)}
 They care about: {', '.join(audience_info.get('cares_about', ['efficiency', 'results']))}
+
+{knowledge_context}
 
 {language_guidelines}
 
@@ -1176,18 +1185,58 @@ DESIGN PRINCIPLES:
             logger.error(f"[GEMINI] Image generation failed: {e}")
             raise
 
-    def _build_language_guidelines(self, icp_preset: dict[str, Any]) -> str:
-        """Build language guidelines string for prompts."""
+    def _build_language_guidelines(self, icp_preset: dict[str, Any], audience: str = "c_suite") -> str:
+        """Build language guidelines string for prompts, enriched with knowledge."""
+        # Get static defaults from preset
         avoid = icp_preset.get("language_style", {}).get("avoid", [])
         use = icp_preset.get("language_style", {}).get("use", [])
         tone = icp_preset.get("tone", "Friendly and professional")
 
+        # Merge with dynamic knowledge from cache
+        try:
+            from src.knowledge.cache import KnowledgeCache
+            cache = KnowledgeCache.get()
+            if cache.is_loaded():
+                knowledge = cache.get_language_guidelines(audience)
+                # Knowledge terms take priority (fresher data from real conversations)
+                avoid = list(set(knowledge["avoid"] + avoid))[:15]
+                use = list(set(knowledge["use"] + use))[:15]
+        except Exception:
+            pass  # Graceful degradation - use static presets only
+
         return f"""LANGUAGE GUIDELINES:
 - Tone: {tone}
-- AVOID these words/phrases: {', '.join(avoid[:10])}
-- USE these words/phrases: {', '.join(use[:10])}
+- AVOID these words/phrases: {', '.join(avoid[:15])}
+- USE these words/phrases: {', '.join(use[:15])}
 - Write for someone with no technical background
 - Focus on benefits, not features"""
+
+    def _build_knowledge_context(self, audience: str) -> str:
+        """Build knowledge context section for prompts."""
+        try:
+            from src.knowledge.cache import KnowledgeCache
+            cache = KnowledgeCache.get()
+            if not cache.is_loaded():
+                return ""
+
+            ctx = cache.get_context(audience)
+
+            if not any([ctx["pain_points"], ctx["features"], ctx["metrics"]]):
+                return ""
+
+            sections = []
+            if ctx["pain_points"]:
+                sections.append(f"CUSTOMER PAIN POINTS (from real calls): {'; '.join(ctx['pain_points'])}")
+            if ctx["features"]:
+                sections.append(f"PRODUCT FEATURES TO REFERENCE: {', '.join(ctx['features'])}")
+            if ctx["metrics"]:
+                sections.append(f"PROOF POINTS TO USE: {'; '.join(ctx['metrics'])}")
+            if ctx.get("quotes"):
+                sections.append(f"CUSTOMER QUOTES: {'; '.join(ctx['quotes'])}")
+
+            return "\n".join(sections)
+        except Exception:
+            return ""  # Graceful degradation
 
     def _get_format_layout_instructions(self, output_format: str) -> str:
         """Get layout instructions based on output format."""
