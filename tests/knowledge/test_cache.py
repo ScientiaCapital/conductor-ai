@@ -110,7 +110,7 @@ class TestKnowledgeCacheDataProcessing:
         mock_client.table.return_value.select.return_value.gte.return_value.execute.return_value = mock_response
 
         with patch.dict("os.environ", {"SUPABASE_URL": "http://test", "SUPABASE_SERVICE_KEY": "key"}):
-            with patch("src.knowledge.cache.create_client", return_value=mock_client):
+            with patch("supabase.create_client", return_value=mock_client):
                 cache = KnowledgeCache.get()
                 await cache.load()
 
@@ -130,7 +130,7 @@ class TestKnowledgeCacheDataProcessing:
         mock_client.table.return_value.select.return_value.gte.return_value.execute.return_value = mock_response
 
         with patch.dict("os.environ", {"SUPABASE_URL": "http://test", "SUPABASE_SERVICE_KEY": "key"}):
-            with patch("src.knowledge.cache.create_client", return_value=mock_client):
+            with patch("supabase.create_client", return_value=mock_client):
                 cache = KnowledgeCache.get()
                 await cache.load()
 
@@ -153,7 +153,7 @@ class TestKnowledgeCacheDataProcessing:
         mock_client.table.return_value.select.return_value.gte.return_value.execute.return_value = mock_response
 
         with patch.dict("os.environ", {"SUPABASE_URL": "http://test", "SUPABASE_SERVICE_KEY": "key"}):
-            with patch("src.knowledge.cache.create_client", return_value=mock_client):
+            with patch("supabase.create_client", return_value=mock_client):
                 cache = KnowledgeCache.get()
                 await cache.load()
 
