@@ -545,6 +545,15 @@ VISUAL REQUIREMENTS:
 - Include simple icons representing the content (construction/business metaphors)
 - Large, readable text (executive-friendly)
 
+TEXT ACCURACY REQUIREMENTS (CRITICAL - DO NOT IGNORE):
+- ONLY use the EXACT text provided in the content section above - DO NOT invent or modify words
+- Every single word must be spelled correctly - double-check spelling
+- Use LARGE fonts (minimum 18pt equivalent) - small text gets garbled
+- If you cannot render text clearly, use fewer words or icons instead
+- NEVER include random letters or gibberish text
+- Section headers: Use ONLY these exact words: "Value Proposition", "Key Benefit", "Problem Solved", "For"
+- Keep descriptions SHORT (under 15 words per section) to ensure clarity
+
 {self._get_format_layout_instructions(output_format)}
 
 {self._get_visual_style_instructions(visual_style)}
