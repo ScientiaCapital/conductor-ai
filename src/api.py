@@ -15,6 +15,8 @@ from typing import Any
 
 import httpx
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from src.agents.runner import AgentRunner
@@ -44,6 +46,15 @@ app = FastAPI(
 # Include routers
 app.include_router(storyboard_router)
 app.include_router(demo_router)
+
+# Serve static files (demo web UI)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.get("/")
+async def root():
+    """Redirect root to demo UI."""
+    return FileResponse("static/demo.html")
 
 
 # ============================================================================
