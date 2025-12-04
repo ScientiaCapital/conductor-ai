@@ -420,23 +420,17 @@ def calculate_roi(revenue: float, costs: float) -> float:
             </h2>
 
             <div class="options-grid">
-                <div class="option-group">
-                    <label for="stageSelect">Stage</label>
-                    <select id="stageSelect">
-                        <option value="preview">Preview (Early concept)</option>
-                        <option value="demo" selected>Demo (Working prototype)</option>
-                        <option value="shipped">Shipped (Production ready)</option>
-                    </select>
-                </div>
+                <!-- Stage hidden - defaults to demo -->
+                <input type="hidden" id="stageSelect" value="demo">
 
-                <div class="option-group">
-                    <label for="audienceSelect">Audience</label>
+                <div class="option-group" style="width: 100%;">
+                    <label for="audienceSelect">Who is this for?</label>
                     <select id="audienceSelect">
-                        <option value="c_suite" selected>C-Suite (Executive summary)</option>
+                        <option value="field_crew" selected>Field Crew (Simple infographic)</option>
                         <option value="business_owner">Business Owner (ROI focus)</option>
-                        <option value="btl_champion">BTL Champion (Technical details)</option>
+                        <option value="c_suite">C-Suite (Executive summary)</option>
+                        <option value="btl_champion">BTL Champion (Operations focus)</option>
                         <option value="top_tier_vc">Top Tier VC (MVP/UVP pitch)</option>
-                        <option value="field_crew">Field Crew (Simple infographic)</option>
                     </select>
                 </div>
             </div>
