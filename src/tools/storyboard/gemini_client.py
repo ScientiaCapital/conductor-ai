@@ -1093,23 +1093,23 @@ RAW EXTRACTION (for context):
 
 {persona_context}
 
-WHAT WE EXTRACTED:
-- Headline: "{understanding.headline}"
-- Description: "{understanding.what_it_does}"
-- Value Proposition: "{understanding.business_value}"
-- For: "{understanding.who_benefits}"
-- Key Benefit: "{understanding.differentiator}"
-- Problem Solved: "{understanding.pain_point_addressed}"
+EXTRACTED DATA (organize visually - create your own section headers based on the content):
+• {understanding.headline}
+• {understanding.what_it_does}
+• {understanding.business_value}
+• Audience: {understanding.who_benefits}
+• {understanding.differentiator}
+• {understanding.pain_point_addressed}
 
 {raw_context}
 
 {knowledge_context if knowledge_context else ""}
 
-GUIDELINES:
-- Write clear, direct business language
-- Transform technical details → business outcomes
-- Keep it SPECIFIC to what was extracted
-- Derive messaging from the extracted content
+VISUAL DESIGN FREEDOM:
+- Create section headers based on WHAT the content is about (field/domain names like "Scheduling", "Invoicing", "Crew Management")
+- NOT generic labels like "Value Proposition" or "Key Benefit"
+- Let icons and visuals communicate - minimize text
+- Trust that executives understand visual hierarchy without explicit labels
 
 NEVER output generic copy. ALWAYS use specifics from the extraction."""
 
@@ -1142,7 +1142,6 @@ TEXT ACCURACY REQUIREMENTS (CRITICAL - DO NOT IGNORE):
 - Use LARGE fonts (minimum 18pt equivalent) - small text gets garbled
 - If you cannot render text clearly, use fewer words or icons instead
 - NEVER include random letters or gibberish text
-- Section headers: Use ONLY these exact words: "Value Proposition", "Key Benefit", "Problem Solved", "For"
 - Keep descriptions SHORT (under 15 words per section) to ensure clarity
 
 {self._get_format_layout_instructions(output_format)}
