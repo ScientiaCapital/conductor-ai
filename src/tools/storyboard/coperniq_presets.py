@@ -21,6 +21,7 @@ class AudiencePersona(str, Enum):
     C_SUITE = "c_suite"
     BTL_CHAMPION = "btl_champion"
     TOP_TIER_VC = "top_tier_vc"
+    FIELD_CREW = "field_crew"
 
 
 class StoryboardStage(str, Enum):
@@ -111,6 +112,39 @@ COPERNIQ_ICP = {
                     "Short sales cycles",
                     "High NPS / customer love",
                 ],
+            },
+        },
+        AudiencePersona.FIELD_CREW: {
+            "title": "Field Crew / Technicians / Blue Collar Workers",
+            "cares_about": ["making my job easier", "not looking stupid", "getting home on time", "less paperwork"],
+            "tone": "Super simple, friendly, visual-first - explain like I'm 10",
+            "hooks": [
+                "This makes your job way easier",
+                "No more paperwork headaches",
+                "Works even when you don't have signal",
+                "Your boss will think you're a genius",
+            ],
+            "infographic_style": {
+                "design": "Simple icons, big text, minimal words",
+                "colors": "Bold primary colors, high contrast",
+                "format": "Step-by-step visual flow, numbered steps",
+                "language_rules": [
+                    "Use 5th grade vocabulary ONLY",
+                    "Replace technical words with everyday analogies",
+                    "Use pictures/icons instead of text when possible",
+                    "Maximum 6 words per bullet point",
+                    "Compare to things they already know (phone, truck, tools)",
+                ],
+                "analogies": {
+                    "API": "like a waiter taking your order",
+                    "database": "like a filing cabinet",
+                    "sync": "like copying to your other phone",
+                    "cloud": "like saving to the internet",
+                    "automation": "like setting a coffee maker timer",
+                    "workflow": "like following a recipe",
+                    "integration": "like plugging in an extension cord",
+                    "real-time": "instant, like a text message",
+                },
             },
         },
     },
