@@ -1,22 +1,21 @@
 # TASK.md - Conductor-AI
 
 **Project**: conductor-ai
-**Last Updated**: 2025-12-04
+**Last Updated**: 2025-12-04 (EOD)
 
 ---
 
 ## Current Status
 
-**Phase 7.5: Knowledge Brain → Storyboard Integration - COMPLETE**
+**Phase 7.6: Intelligent Model Routing - COMPLETE**
 
-- ✅ Knowledge Base Schema (`sql/004_coperniq_knowledge.sql`) - MIGRATED
-- ✅ Knowledge Module (`src/knowledge/`) - base, extraction, close_crm, service, cache
-- ✅ Knowledge CLI (`knowledge_cli.py`) - close, loom, miro, code, search, stats
-- ✅ KnowledgeCache singleton with startup preload
-- ✅ Storyboard prompts enriched with knowledge (banned/approved terms, pain points)
-- ✅ 58 knowledge tests passing
-- ✅ Pre-seeded 22 banned terms + 14 approved terms (loaded from Supabase)
-- ✅ **VC storyboard polish** - removed rigid template, enabled creative freedom for GTM/LinkedIn
+- ✅ 3-Stage Pipeline: EXTRACT → REFINE → GENERATE
+- ✅ DeepSeek V3 for text understanding (fast, reliable)
+- ✅ Qwen 2.5 VL 72B for vision/OCR (better doc understanding)
+- ✅ Gemini 3 Pro Image Preview for generation (FREE during preview)
+- ✅ Confidence-based refinement (< 0.75 triggers alternate model pass)
+- ✅ Fixed R1 hang issue (R1 is 60-120s, V3 is 3-5s)
+- ✅ VC storyboard polish - creative freedom for GTM/LinkedIn
 
 **Total Tests**: 727 (59 SDK + 204 core + 186 video + 202 storyboard + 58 knowledge + 18 demo)
 
@@ -73,6 +72,15 @@ Populate the knowledge base with actual data:
 ---
 
 ## Completed Phases
+
+### Phase 7.6: Intelligent Model Routing (2025-12-04)
+- ✅ 3-Stage Pipeline architecture (EXTRACT → REFINE → GENERATE)
+- ✅ DeepSeek V3 (`deepseek/deepseek-chat`) for text/code extraction
+- ✅ Qwen 2.5 VL 72B (`qwen/qwen2.5-vl-72b-instruct`) for vision/OCR
+- ✅ Gemini 3 Pro Image Preview for final PNG generation (FREE)
+- ✅ Confidence-based refinement (< 0.75 threshold triggers alternate model)
+- ✅ Fixed R1 hang issue (60-120s → 3-5s with V3)
+- ✅ 202 storyboard tests passing
 
 ### Phase 7.5: Knowledge → Storyboard Integration (2025-12-04)
 - ✅ KnowledgeCache singleton (`src/knowledge/cache.py`)
