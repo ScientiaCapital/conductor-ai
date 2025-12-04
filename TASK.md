@@ -7,15 +7,19 @@
 
 ## Current Status
 
-**Phase 7: Coperniq Knowledge Brain - COMPLETE**
+**Phase 7.5: Knowledge Brain → Storyboard Integration - COMPLETE**
 
-- ✅ Knowledge Base Schema (`sql/004_coperniq_knowledge.sql`)
-- ✅ Knowledge Module (`src/knowledge/`) - base, extraction, close_crm, service
+- ✅ Knowledge Base Schema (`sql/004_coperniq_knowledge.sql`) - MIGRATED
+- ✅ Knowledge Module (`src/knowledge/`) - base, extraction, close_crm, service, cache
 - ✅ Knowledge CLI (`knowledge_cli.py`) - close, loom, miro, code, search, stats
-- ✅ 43 new tests for knowledge module
-- ✅ Pre-seeded 22 banned terms + 6 approved terms
+- ✅ KnowledgeCache singleton with startup preload
+- ✅ Storyboard prompts enriched with knowledge (banned/approved terms, pain points)
+- ✅ 58 knowledge tests passing
+- ✅ Pre-seeded 22 banned terms + 14 approved terms (loaded from Supabase)
 
-**Total Tests**: 712 (59 SDK + 204 core + 186 video + 202 storyboard + 43 knowledge + 18 demo)
+**Total Tests**: 727 (59 SDK + 204 core + 186 video + 202 storyboard + 58 knowledge + 18 demo)
+
+**SQL Migrations**: All 4 migrations completed in Supabase
 
 ---
 
@@ -23,15 +27,16 @@
 
 ### 🔴 HIGH Priority
 
-**SQL Migration Required**
-- Run `sql/004_coperniq_knowledge.sql` in Supabase SQL Editor
-- Also verify 001, 002, 003 migrations have been run
+**None currently** - Ready for user direction on next phase
 
 ---
 
 ### 🟡 MEDIUM Priority
 
-**None currently** - Awaiting user direction for Phase 8
+**Ingest Real Data** - Knowledge Brain is connected but needs actual content:
+- Close CRM calls/notes (pain points, metrics, quotes)
+- Loom transcripts (feature mentions, use cases)
+- Miro screenshots (roadmap features)
 
 ---
 
@@ -41,47 +46,36 @@
 
 ---
 
-## Pending User Action
-
-### SQL Migrations Required
-**Files** (run in order):
-1. `sql/001_audit_and_leads.sql` - audit_logs, tool_executions, leads
-2. `sql/002_storyboard_jobs.sql` - storyboard job state persistence
-3. `sql/003_storage_buckets.sql` - storage buckets for images
-4. `sql/004_coperniq_knowledge.sql` - knowledge brain schema
-
-**Action**: Run in Supabase SQL Editor
-
----
-
 ## Next Phase Options (Awaiting User Decision)
 
-### Option A: Knowledge Integration into Storyboards
-Connect the Knowledge Brain to storyboard generation:
-- Retrieve approved/banned terms during generation
-- Use extracted pain points and quotes for content
-- Dynamic storyboard content based on knowledge
-
-### Option B: Real Data Ingestion Pipeline
+### Option A: Real Data Ingestion Pipeline
 Populate the knowledge base with actual data:
 - Close CRM calls/notes from last 30 days
 - Loom transcripts from product demos
 - Miro roadmap screenshots
 - Engineer code for feature names
 
-### Option C: Phase 8 - Advanced Features
+### Option B: Phase 8 - Advanced Features
 - Streaming responses (Server-Sent Events)
 - Multi-agent collaboration
 - Memory system (conversation history)
 - Cost tracking per session
 
-### Option D: Plugin Integrations (Tier 1)
+### Option C: Plugin Integrations (Tier 1)
 1. **dealer-scraper-mvp** - Fix 16 broken scrapers with web_fetch tool
 2. **sales-agent** - LinkedIn scraping + lead enrichment
 
 ---
 
 ## Completed Phases
+
+### Phase 7.5: Knowledge → Storyboard Integration (2025-12-04)
+- ✅ KnowledgeCache singleton (`src/knowledge/cache.py`)
+- ✅ Startup preload in FastAPI lifespan
+- ✅ Language guidelines enriched with banned/approved terms
+- ✅ Knowledge context injection into prompts
+- ✅ 15 new cache tests (58 total knowledge tests)
+- ✅ Graceful degradation (storyboards work even if knowledge fails)
 
 ### Phase 7: Knowledge Brain (2025-12-04)
 - ✅ Knowledge schema with full-text search
@@ -136,20 +130,20 @@ Populate the knowledge base with actual data:
 ## Questions for User
 
 1. **Which Phase 8 direction?**
-   - A) Integrate knowledge into storyboards
-   - B) Ingest real data from Close CRM
-   - C) Advanced features (streaming, multi-agent, memory)
-   - D) Plugin integrations
+   - A) Ingest real data from Close CRM / Loom / Miro
+   - B) Advanced features (streaming, multi-agent, memory)
+   - C) Plugin integrations
 
 ---
 
 ## Notes
 
 - All code follows project standards (see PLANNING.md)
-- All tests passing (712 total)
+- All tests passing (727 total)
 - No OpenAI models used (DeepSeek/Qwen/Gemini only)
 - API keys in .env only (never hardcoded)
+- Knowledge Brain connected to storyboard generation
 
 ---
 
-**Phase 7 complete - awaiting user direction for Phase 8**
+**Phase 7.5 complete - Knowledge → Storyboard integration live. Awaiting user direction for Phase 8.**

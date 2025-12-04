@@ -9,27 +9,37 @@
 
 ## Current Status (2025-12-04)
 
-### Phase 7: Coperniq Knowledge Brain - IN PROGRESS
+### Phase 7.5: Knowledge → Storyboard Integration - COMPLETE
 **Branch**: `main`
-**Tests**: 43 new tests (knowledge module)
+**Tests**: 58 knowledge tests (727 total)
 
-Building an intelligent learning system that ingests from multiple sources and updates storyboard generation dynamically.
+Knowledge Brain now feeds directly into storyboard generation for dynamic, learning-based content.
 
-✅ **Knowledge Base Schema** (`sql/004_coperniq_knowledge.sql`)
+✅ **Knowledge Base Schema** (`sql/004_coperniq_knowledge.sql`) - MIGRATED
 - `knowledge_sources` - Track ingestion sources (Close CRM, Loom, Miro, Code)
 - `coperniq_knowledge` - Core knowledge entries (features, pain points, metrics, quotes)
 - `knowledge_tags` - Flexible tagging system
 - `knowledge_extraction_logs` - Audit trail
 - Full-text search with `search_knowledge()` function
-- Pre-seeded with 22 banned terms + 6 approved terms
+- Pre-seeded with 22 banned terms + 14 approved terms
 
 ✅ **Knowledge Module** (`src/knowledge/`)
 | Component | Purpose |
 |-----------|---------|
 | `base.py` | Core types: `KnowledgeSource`, `KnowledgeEntry`, `KnowledgeType` |
+| `cache.py` | **NEW** Singleton cache with startup preload |
 | `extraction.py` | LLM extraction using DeepSeek V3.2 |
 | `close_crm.py` | Close CRM ingestion (calls + notes) |
 | `service.py` | Main orchestrator with query methods |
+
+✅ **Storyboard Integration** (`src/tools/storyboard/gemini_client.py`)
+- `_build_language_guidelines(audience)` - Merges preset + knowledge banned/approved terms
+- `_build_knowledge_context(audience)` - Injects pain points, features, metrics, quotes
+- `understand_code/image/multiple_images` - Now audience-aware with knowledge enrichment
+
+✅ **Startup Preload** (`src/api.py`)
+- FastAPI lifespan loads KnowledgeCache at startup
+- Graceful degradation: storyboards work even if knowledge fails
 
 ✅ **Knowledge CLI** (`knowledge_cli.py`)
 ```bash
@@ -73,24 +83,43 @@ INGEST → EXTRACT (LLM) → STORE (Supabase)
 - `use_case` - Specific use cases
 - `success_story` - Customer wins
 
-### Today's Work Summary
-- **Content Extraction Fix**: Two-phase architecture (EXTRACT → MARKETING TRANSFORM)
-- **Multi-model routing**: DeepSeek V3.2 for text, Qwen 2.5 VL for images, Gemini for generation
-- **Verification fields**: `raw_extracted_text` + `extraction_confidence` for CEO/CTO review
-- **Knowledge Brain**: Learning pipeline from Close CRM, Loom, Miro, Code
+### Today's Work Summary (2025-12-04)
+- **Knowledge → Storyboard Integration**: KnowledgeCache singleton with startup preload
+- **SQL Migrations**: All 4 migrations (001-004) completed in Supabase
+- **Prompt Enrichment**: Language guidelines + knowledge context injected into understand methods
+- **Graceful Degradation**: Storyboards work even if knowledge cache fails to load
+- **Tests**: 15 new cache tests, 58 total knowledge tests, 727 total project tests
 
-### Key Architectural Decision (2025-12-04)
-**Problem**: Over-aggressive IP sanitization killed content specificity
-**Solution**: Separate EXTRACTION (full details) from GENERATION (marketing-safe output)
+### Key Architectural Patterns
+
+**Singleton Cache Pattern** (KnowledgeCache)
+```python
+cache = KnowledgeCache.get()  # Always same instance
+await cache.load()            # Idempotent, only loads once
+cache.get_language_guidelines("c_suite")  # Fast in-memory access
+```
+
+**Graceful Degradation Pattern**
+```python
+try:
+    from src.knowledge.cache import KnowledgeCache
+    cache = KnowledgeCache.get()
+    if cache.is_loaded():
+        # Use knowledge
+except Exception:
+    pass  # Fall back to static presets
+```
+
+**Two-Phase Architecture** (EXTRACT → GENERATE)
 ```
 Input → [FULL EXTRACTION] → Specific understanding → [MARKETING TRANSFORM] → External-ready
 ```
 
-## Current Status
+## Completed Phases
 
 ### Phase 1: SDK Foundation - COMPLETE
 **Branch**: `main`
-**Tests**: 59 SDK tests + 204 core tests + 186 video tests + 263 storyboard tests = 712 total
+**Tests**: 59 SDK tests
 
 ### Phase 2: 3-Way Plugin Integration - COMPLETE
 **Branch**: `main`
@@ -396,8 +425,9 @@ conductor-ai/
 │   │   ├── sql_query.py        # Supabase queries
 │   │   ├── video/              # Video prospecting tools (7 tools, 3.5k LOC)
 │   │   └── storyboard/         # Storyboard tools (3 tools, 202 tests)
-│   ├── knowledge/              # Knowledge Brain (NEW)
+│   ├── knowledge/              # Knowledge Brain
 │   │   ├── base.py             # Core types: KnowledgeSource, KnowledgeEntry
+│   │   ├── cache.py            # Singleton cache with startup preload
 │   │   ├── extraction.py       # LLM extraction via DeepSeek V3.2
 │   │   ├── close_crm.py        # Close CRM ingestion
 │   │   └── service.py          # Main orchestrator + queries
@@ -416,7 +446,7 @@ conductor-ai/
 ├── tests/
 │   ├── sdk/                    # SDK tests (59 tests)
 │   ├── tools/                  # Tool tests
-│   └── knowledge/              # Knowledge tests (43 tests) (NEW)
+│   └── knowledge/              # Knowledge tests (58 tests)
 ├── knowledge_cli.py            # Knowledge ingestion CLI (NEW)
 ├── demo_cli.py                 # Storyboard demo CLI
 ├── pyproject.toml              # Package config with SDK extras
