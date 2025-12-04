@@ -148,63 +148,25 @@ COPERNIQ_ICP = {
             ],
         },
         AudiencePersona.TOP_TIER_VC: {
-            "title": "Top Tier VC / Angel / PE Investor",
-            "cares_about": ["TAM/SAM/SOM", "traction metrics", "defensible moat", "unit economics", "team"],
-            "tone": "Data-driven, confident, investment-thesis focused. NO customer CTAs.",
+            "title": "Investor / VC / Angel",
+            "cares_about": ["big market opportunity", "why this team wins", "what's defensible", "momentum signals"],
+            "tone": "Confident founder energy. Data backs up the vision. No fluff, no sales pitch.",
             "hooks": [
-                "$200B+ market, fragmented incumbents, perfect timing",
-                "Category-defining platform for contractor operations",
-                "Vertical AI that compounds with data network effects",
+                # These are starting points - Gemini should riff on the actual content
+                "Here's what contractors deal with every day",
+                "This is why the old tools don't work anymore",
+                "The market is shifting - here's how we're positioned",
             ],
-            # CRITICAL: VC storyboard structure (NOT customer demo)
-            "storyboard_structure": {
-                "section_1_problem": {
-                    "header": "THE PROBLEM",
-                    "format": "$X billion lost annually to [specific pain]. X% of contractors still use [outdated method].",
-                    "example": "$47B lost annually to operational inefficiency. 73% of contractors still run on spreadsheets.",
-                },
-                "section_2_solution": {
-                    "header": "THE SOLUTION",
-                    "format": "One-sentence UVP. What we do differently.",
-                    "example": "One platform that runs the entire contracting operation: quote → dispatch → pay.",
-                },
-                "section_3_traction": {
-                    "header": "TRACTION",
-                    "format": "ARR, growth rate, customer count, key metric",
-                    "example": "$X ARR | X% MoM growth | X customers | 99% retention",
-                    "note": "Use Coperniq proof points if real metrics unavailable",
-                },
-                "section_4_market": {
-                    "header": "MARKET",
-                    "format": "TAM → SAM → SOM with clear logic",
-                    "example": "$200B TAM (all contractor software) → $40B SAM (MEP+Energy) → $2B SOM (mid-market)",
-                },
-                "section_5_why_now": {
-                    "header": "WHY NOW",
-                    "format": "Market shift enabling this opportunity",
-                    "example": "AI inflection + workforce shortage + regulatory pressure = perfect storm",
-                },
-                "section_6_moat": {
-                    "header": "DEFENSIBILITY",
-                    "format": "What compounds over time",
-                    "example": "Data network effects: every job makes the AI smarter for every customer",
-                },
-            },
-            "avoid_in_vc_storyboard": [
+            # NO rigid structure - let Gemini be creative for LinkedIn/GTM
+            # The prompt gives guidance, not templates
+            "avoid": [
                 "Book a demo",
                 "Get started",
                 "Contact sales",
                 "Free trial",
-                "See pricing",
-                "Customer testimonials",  # Use metrics instead
-            ],
-            "metrics_that_matter": [
-                "ARR / MRR",
-                "Growth rate (MoM/YoY)",
-                "Net Revenue Retention (NRR)",
-                "CAC payback period",
-                "Gross margin",
-                "Logo retention",
+                "revolutionary",
+                "game-changing",
+                "best-in-class",
             ],
         },
         AudiencePersona.FIELD_CREW: {

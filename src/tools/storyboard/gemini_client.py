@@ -1046,25 +1046,49 @@ Return ONLY valid JSON matching this exact structure:
 
         # Build audience-specific content structure
         if audience == "top_tier_vc":
-            # VC/Investor storyboard - use investment thesis structure
-            vc_structure = persona.get("storyboard_structure", {})
+            # VC/Investor storyboard - flexible investment thesis
             proof = brand.get("proof_points", {})
 
-            content_section = f"""CONTENT TO DISPLAY (VC/INVESTOR PITCH - NOT A CUSTOMER DEMO):
-- HEADLINE: "{understanding.headline}"
+            # Include raw extraction for richer context
+            raw_context = ""
+            if understanding.raw_extracted_text:
+                raw_context = f"""
+SOURCE MATERIAL (use to derive specific insights):
+{understanding.raw_extracted_text[:600]}
+"""
 
-SECTIONS (LEFT TO RIGHT FLOW):
-1. THE PROBLEM: "{understanding.pain_point_addressed}"
-2. THE SOLUTION: "{understanding.what_it_does}"
-3. TRACTION: Use these proof points: {proof.get('completion_rate', '99% completion')} | {proof.get('payment_speed', '65% faster payments')} | {proof.get('scale_story', 'scaled 5x without adding staff')}
-4. MARKET: $200B TAM → $40B SAM (MEP+Energy contractors) → $2B SOM
-5. WHY NOW: AI inflection + workforce shortage + regulatory pressure
-6. MOAT: "{understanding.differentiator}"
+            content_section = f"""CONTENT FOR INVESTOR AUDIENCE:
 
-CRITICAL: NO "Book a demo" or customer CTAs. This is for INVESTORS.
-- Use metrics and numbers prominently
-- Show market opportunity, not product features
-- Confidence and data, not sales pitch"""
+WHAT WE EXTRACTED:
+- Core Insight: "{understanding.headline}"
+- Problem Space: "{understanding.pain_point_addressed}"
+- Solution: "{understanding.what_it_does}"
+- Differentiator: "{understanding.differentiator}"
+- Business Value: "{understanding.business_value}"
+{raw_context}
+
+PROOF POINTS (weave in naturally, don't force all):
+- {proof.get('completion_rate', 'High completion rates')}
+- {proof.get('payment_speed', 'Faster payment cycles')}
+- {proof.get('scale_story', 'Scales without adding headcount')}
+
+INVESTOR MINDSET (what they care about):
+- Is this a big market? Why now?
+- What's defensible? What compounds over time?
+- Show traction/momentum, not features
+- Data and metrics speak louder than adjectives
+
+TONE: Confident, data-driven, thesis-focused. Like a founder who knows their numbers cold.
+
+CREATIVE FREEDOM: Design the visual however best tells this story.
+You choose the layout, sections, and flow. No rigid template required.
+Make it visually compelling - this could end up in a pitch deck.
+
+FORBIDDEN (never include):
+- "Book a demo", "Get started", "Contact sales", "Free trial"
+- Customer testimonials or case study quotes
+- Feature walkthroughs or how-to content
+- Marketing buzzwords (revolutionary, game-changing, best-in-class)"""
         else:
             # Customer-focused storyboard (sales, internal, field crew)
             # NO badges - these are for LinkedIn/email graphics, not live demos
