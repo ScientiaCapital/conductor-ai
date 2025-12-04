@@ -26,6 +26,96 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
+
+def _repair_json(json_str: str) -> str:
+    """
+    Attempt to repair truncated or malformed JSON.
+
+    Common issues from LLM responses:
+    - Unterminated strings
+    - Missing closing braces
+    - Trailing commas
+    """
+    import re
+
+    # Remove markdown code blocks
+    if json_str.startswith("```"):
+        parts = json_str.split("```")
+        if len(parts) >= 2:
+            json_str = parts[1]
+            if json_str.startswith("json"):
+                json_str = json_str[4:]
+        json_str = json_str.strip()
+
+    # Try parsing as-is first
+    try:
+        json.loads(json_str)
+        return json_str
+    except json.JSONDecodeError:
+        pass
+
+    # Fix unterminated strings by closing them
+    # Count quotes to see if we have an odd number (unterminated)
+    quote_count = json_str.count('"') - json_str.count('\\"')
+    if quote_count % 2 == 1:
+        json_str = json_str + '"'
+
+    # Add missing closing braces
+    open_braces = json_str.count('{') - json_str.count('}')
+    if open_braces > 0:
+        json_str = json_str + '}' * open_braces
+
+    # Remove trailing commas before closing braces
+    json_str = re.sub(r',\s*}', '}', json_str)
+    json_str = re.sub(r',\s*]', ']', json_str)
+
+    return json_str
+
+
+def _safe_parse_understanding(
+    response_text: str,
+    source: str = "unknown",
+) -> "StoryboardUnderstanding":
+    """
+    Safely parse LLM response to StoryboardUnderstanding.
+
+    Returns error state instead of raising on parse failure.
+    """
+    try:
+        json_str = _repair_json(response_text.strip())
+        data = json.loads(json_str)
+        return StoryboardUnderstanding(**data)
+    except json.JSONDecodeError as e:
+        logger.error(f"[UNDERSTAND] Failed to parse {source} response: {e}")
+        logger.error(f"[UNDERSTAND] Raw response was: {response_text[:500] if response_text else 'None'}")
+        return StoryboardUnderstanding(
+            headline="EXTRACTION FAILED - Check Input",
+            tagline="Could not extract content",
+            what_it_does="The AI returned malformed data. Try again or use a different input.",
+            business_value="Unable to determine - extraction failed",
+            who_benefits="Unable to determine - extraction failed",
+            differentiator="Unable to determine - extraction failed",
+            pain_point_addressed="Unable to determine - extraction failed",
+            suggested_icon="alert-triangle",
+            raw_extracted_text=f"PARSE ERROR ({source}): {str(e)[:200]}",
+            extraction_confidence=0.0,
+        )
+    except Exception as e:
+        logger.error(f"[UNDERSTAND] Unexpected error parsing {source}: {e}")
+        return StoryboardUnderstanding(
+            headline="EXTRACTION FAILED - Unexpected Error",
+            tagline="Something went wrong",
+            what_it_does=f"Error: {str(e)[:100]}",
+            business_value="Unable to determine",
+            who_benefits="Unable to determine",
+            differentiator="Unable to determine",
+            pain_point_addressed="Unable to determine",
+            suggested_icon="alert-triangle",
+            raw_extracted_text=f"ERROR ({source}): {str(e)[:300]}",
+            extraction_confidence=0.0,
+        )
+
+
 # Vision model options for understanding (images)
 VisionModel = Literal["gemini", "qwen"]
 
@@ -559,21 +649,15 @@ Return ONLY valid JSON matching this exact structure:
                 )
                 response_text = response.text
 
-            # Parse JSON response
-            json_str = response_text.strip()
-            if json_str.startswith("```"):
-                json_str = json_str.split("```")[1]
-                if json_str.startswith("json"):
-                    json_str = json_str[4:]
-                json_str = json_str.strip()
-
-            data = json.loads(json_str)
-            logger.info(f"[UNDERSTAND] Successfully extracted insights from transcript for {audience}")
-            return StoryboardUnderstanding(**data)
+            # Parse JSON response with safe fallback
+            result = _safe_parse_understanding(response_text, source="transcript")
+            if result.extraction_confidence > 0:
+                logger.info(f"[UNDERSTAND] Successfully extracted insights from transcript for {audience}")
+            return result
 
         except Exception as e:
             logger.error(f"[GEMINI] Transcript understanding failed: {e}")
-            raise
+            return _safe_parse_understanding("", source=f"transcript-error: {str(e)[:100]}")
 
     def _get_persona_extraction_focus(self, audience: str, audience_info: dict) -> str:
         """Get persona-specific extraction instructions."""
@@ -740,20 +824,15 @@ Return ONLY valid JSON matching this exact structure:
                 )
                 response_text = response.text
 
-            # Parse JSON response
-            json_str = response_text.strip()
-            if json_str.startswith("```"):
-                json_str = json_str.split("```")[1]
-                if json_str.startswith("json"):
-                    json_str = json_str[4:]
-                json_str = json_str.strip()
-
-            data = json.loads(json_str)
-            return StoryboardUnderstanding(**data)
+            # Parse JSON response with safe fallback
+            result = _safe_parse_understanding(response_text, source="image")
+            if result.extraction_confidence > 0:
+                logger.info(f"[UNDERSTAND] Successfully extracted insights from image")
+            return result
 
         except Exception as e:
             logger.error(f"[GEMINI] Image understanding failed: {e}")
-            raise
+            return _safe_parse_understanding("", source=f"image-error: {str(e)[:100]}")
 
     async def understand_multiple_images(
         self,
@@ -894,21 +973,15 @@ Return ONLY valid JSON matching this exact structure:
                 )
                 response_text = response.text
 
-            # Parse JSON response
-            json_str = response_text.strip()
-            if json_str.startswith("```"):
-                json_str = json_str.split("```")[1]
-                if json_str.startswith("json"):
-                    json_str = json_str[4:]
-                json_str = json_str.strip()
-
-            data = json.loads(json_str)
-            logger.info(f"[GEMINI] Successfully understood {len(images_data)} images together")
-            return StoryboardUnderstanding(**data)
+            # Parse JSON response with safe fallback
+            result = _safe_parse_understanding(response_text, source="multi-image")
+            if result.extraction_confidence > 0:
+                logger.info(f"[GEMINI] Successfully understood {len(images_data)} images together")
+            return result
 
         except Exception as e:
             logger.error(f"[GEMINI] Multi-image understanding failed: {e}")
-            raise
+            return _safe_parse_understanding("", source=f"multi-image-error: {str(e)[:100]}")
 
     async def generate_storyboard(
         self,
