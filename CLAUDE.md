@@ -7,7 +7,22 @@
 
 ---
 
-## Current Status (2025-12-04)
+## Current Status (2025-12-04) - EOD UPDATE
+
+### Today's Work Summary (22 commits)
+- **Content Extraction Fix**: Two-phase architecture (EXTRACT → MARKETING TRANSFORM)
+- **Multi-model routing**: DeepSeek V3.2 for text, Qwen 2.5 VL for images, Gemini for generation
+- **Verification fields**: `raw_extracted_text` + `extraction_confidence` for CEO/CTO review
+- **22 commits today**: Artist styles, multi-image support, 16:9 format, strict accuracy, brand data
+
+### Key Architectural Decision (2025-12-04)
+**Problem**: Over-aggressive IP sanitization killed content specificity
+**Solution**: Separate EXTRACTION (full details) from GENERATION (marketing-safe output)
+```
+Input → [FULL EXTRACTION] → Specific understanding → [MARKETING TRANSFORM] → External-ready
+```
+
+## Current Status
 
 ### Phase 1: SDK Foundation - COMPLETE
 **Branch**: `main`
