@@ -243,13 +243,7 @@ COPERNIQ_ICP = {
     },
     "language_style": {
         "avoid": [
-            # Technical jargon (NO IP EXPOSURE)
-            "AI",
-            "machine learning",
-            "algorithm",
-            "neural network",
-            "deep learning",
-            "model",
+            # Technical jargon (confuses blue collar workers)
             "API",
             "microservices",
             "async",
@@ -258,25 +252,28 @@ COPERNIQ_ICP = {
             "frontend",
             "deployment",
             "infrastructure",
-            # Proprietary terms (IP PROTECTION)
-            "proprietary",
+            "algorithm",
+            "neural network",
+            "deep learning",
+            # Proprietary terms (actual IP exposure)
+            "proprietary algorithm",
             "patent-pending",
             "trade secret",
-            "competitive advantage",
             "secret sauce",
-            # Boring corporate speak
-            "leverage",
-            "synergy",
-            "paradigm",
-            "ecosystem",
-            "holistic",
-            "robust",
-            "scalable solution",
-            "best-in-class",
-            "cutting-edge",
+            # Marketing fluff (sounds salesy/fake)
             "revolutionary",
             "disruptive",
             "game-changing",
+            "best-in-class",
+            "cutting-edge",
+            "synergy",
+            "paradigm",
+            "holistic",
+            # NOTE: These are OK and should NOT be avoided:
+            # - "AI" (we have Receptionist AI, AI features)
+            # - "competitive advantage" (valid business language)
+            # - "scalable" / "robust" (valid descriptors)
+            # - "machine learning" when appropriate for technical audience
         ],
         "use": [
             # Simple, benefit-focused language
@@ -309,6 +306,30 @@ COPERNIQ_ICP = {
             "trusted by MEP firms",
             "built for self-performers",
             "designed by people who get it",
+        ],
+    },
+    # Value props for transcript extraction (maps to Coperniq features)
+    "value_props": {
+        "core": [
+            "Projects - track every job from start to finish",
+            "Dispatch - send the right crew to the right job",
+            "Scheduling - fill your calendar without the chaos",
+            "CRM - know your customers, win more work",
+            "Quotes - create professional proposals in minutes",
+            "Mobile - your crews can access everything on-site",
+        ],
+        "ai": [
+            "Receptionist AI - never miss a call, book 24/7",
+            "Project Copilot - ask questions about any job",
+            "Smart Forms - digitize inspections instantly",
+            "Quote Generation - good/better/best options automatically",
+        ],
+        "outcomes": [
+            "Get paid faster - 65% improvement in payment collection",
+            "Save time - hours back every week",
+            "Scale operations - grow without adding overhead",
+            "Know your numbers - see exactly where every dollar goes",
+            "Go home on time - stop the after-hours chaos",
         ],
     },
     "visual_style": {
@@ -399,25 +420,25 @@ SANITIZE_RULES = {
 
 STAGE_TEMPLATES = {
     StoryboardStage.PREVIEW: {
-        "header_prefix": "Coming Soon",
-        "tone_modifier": "exciting, forward-looking, exclusive preview",
-        "cta": "Want early access? Let's talk.",
-        "visual_style": "Blueprint/wireframe aesthetic, future-focused",
-        "badge": "SNEAK PEEK",
+        "header_prefix": "Introducing",
+        "tone_modifier": "confident, benefit-focused, this solves real problems",
+        "cta": "See how it works for your team.",
+        "visual_style": "Clean, professional, polished",
+        "badge": "",  # No badge - clean marketing
     },
     StoryboardStage.DEMO: {
-        "header_prefix": "Now Working",
-        "tone_modifier": "confident, proven, see-it-in-action",
-        "cta": "Ready to see it live? Book a demo.",
+        "header_prefix": "See How",
+        "tone_modifier": "confident, proven, real results",
+        "cta": "Let's talk about your operation.",
         "visual_style": "Screenshot-based, real interface glimpses",
-        "badge": "LIVE DEMO",
+        "badge": "",  # No badge - clean marketing
     },
     StoryboardStage.SHIPPED: {
-        "header_prefix": "Now Available",
-        "tone_modifier": "ready-to-use, immediate value, start today",
-        "cta": "Start your free trial today.",
+        "header_prefix": "Transform Your",
+        "tone_modifier": "ready-to-use, immediate value, proven results",
+        "cta": "Start seeing results this week.",
         "visual_style": "Polished, professional, ready-to-use",
-        "badge": "AVAILABLE NOW",
+        "badge": "",  # No badge - clean marketing
     },
 }
 

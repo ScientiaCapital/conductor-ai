@@ -184,6 +184,60 @@ class UnifiedStoryboardTool(BaseTool):
         ext = os.path.splitext(file_path)[1].lower()
         return ext in IMAGE_EXTENSIONS
 
+    def is_transcript(self, content: str) -> bool:
+        """
+        Detect if text content is a transcript vs code.
+
+        Transcripts have:
+        - Natural language sentences
+        - Speaker patterns (Name:, Speaker 1:)
+        - Conversational markers
+        - Few code syntax patterns
+
+        Code has:
+        - Syntax keywords (def, class, function, import, etc.)
+        - Brackets and indentation patterns
+        - Variable declarations
+        """
+        # Code indicators (more = likely code)
+        code_patterns = [
+            "def ", "class ", "function ", "import ", "from ",
+            "const ", "let ", "var ", "async ", "await ",
+            "return ", "if (", "for (", "while (",
+            "->", "=>", "self.", "this.",
+            "#!/", "# coding:", "# -*- coding",
+        ]
+
+        # Transcript indicators (more = likely transcript)
+        transcript_patterns = [
+            ": ", "Speaker", "said", "talked about",
+            "we discussed", "they mentioned", "the call",
+            "meeting", "demo", "presentation",
+            "thank you", "thanks for", "let me",
+            "I think", "we can", "going to",
+            ". And ", ". So ", ". But ",
+        ]
+
+        content_lower = content.lower()
+        first_2000 = content_lower[:2000]  # Check start of content
+
+        code_score = sum(1 for p in code_patterns if p.lower() in first_2000)
+        transcript_score = sum(1 for p in transcript_patterns if p.lower() in first_2000)
+
+        # Check for speaker patterns like "Name:" at line starts
+        lines = content[:2000].split('\n')
+        speaker_lines = sum(1 for line in lines if ':' in line[:30] and line.strip())
+        if speaker_lines > 3:
+            transcript_score += 3
+
+        # Long content with few code patterns is likely a transcript
+        if len(content) > 3000 and code_score < 3:
+            transcript_score += 2
+
+        logger.info(f"[INPUT DETECT] code_score={code_score}, transcript_score={transcript_score}")
+
+        return transcript_score > code_score
+
     def save_and_open_browser(
         self,
         png_bytes: bytes,
@@ -377,13 +431,23 @@ class UnifiedStoryboardTool(BaseTool):
                     )
             else:
                 assert isinstance(content, str)
-                # Sanitize code content
-                sanitized = sanitize_content(content, icp)
-                understanding = await self.gemini_client.understand_code(
-                    code_content=sanitized,
-                    icp_preset=icp,
-                    audience=audience,  # Pass string, not persona dict
-                )
+                # Auto-detect: is this code or a transcript?
+                if self.is_transcript(content):
+                    logger.info("Detected TRANSCRIPT input - using transcript understanding")
+                    understanding = await self.gemini_client.understand_transcript(
+                        transcript=content,
+                        icp_preset=icp,
+                        audience=audience,
+                    )
+                else:
+                    logger.info("Detected CODE input - using code understanding")
+                    # Sanitize code content
+                    sanitized = sanitize_content(content, icp)
+                    understanding = await self.gemini_client.understand_code(
+                        code_content=sanitized,
+                        icp_preset=icp,
+                        audience=audience,
+                    )
 
             # Stage 2: Generate storyboard
             artist_msg = f", artist_style={artist_style}" if artist_style else ""
@@ -413,12 +477,16 @@ class UnifiedStoryboardTool(BaseTool):
                 "storyboard_png": storyboard_b64,
                 "understanding": {
                     "headline": understanding.headline,
+                    "tagline": understanding.tagline,
                     "what_it_does": understanding.what_it_does,
                     "business_value": understanding.business_value,
                     "who_benefits": understanding.who_benefits,
                     "differentiator": understanding.differentiator,
                     "pain_point_addressed": understanding.pain_point_addressed,
                     "suggested_icon": understanding.suggested_icon,
+                    # DEBUG/VERIFICATION fields - for CEO/CTO to verify extraction is correct
+                    "raw_extracted_text": understanding.raw_extracted_text,
+                    "extraction_confidence": understanding.extraction_confidence,
                 },
                 "file_path": file_path,
                 "input_type": input_type,

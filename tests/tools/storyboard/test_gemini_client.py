@@ -19,9 +19,10 @@ class TestGeminiConfig:
         """Test default configuration values."""
         with patch.dict("os.environ", {"GOOGLE_API_KEY": "test-key"}):
             config = GeminiConfig()
-            assert config.vision_model == "gemini-2.0-flash"
-            assert config.image_model == "gemini-2.0-flash-preview-image-generation"
-            assert config.timeout == 60
+            # NOTE: Config now has split model config for multi-model architecture
+            assert config.gemini_vision_model == "models/gemini-2.0-flash"
+            assert config.image_model == "models/gemini-3-pro-image-preview"
+            assert config.timeout == 90
             assert config.max_retries == 3
 
     def test_config_from_env(self):
@@ -38,10 +39,12 @@ class TestGeminiConfig:
     def test_custom_models(self):
         """Test custom model configuration."""
         config = GeminiConfig(
-            vision_model="custom-vision",
+            gemini_vision_model="custom-gemini-vision",
+            qwen_model="custom-qwen",
             image_model="custom-image",
         )
-        assert config.vision_model == "custom-vision"
+        assert config.gemini_vision_model == "custom-gemini-vision"
+        assert config.qwen_model == "custom-qwen"
         assert config.image_model == "custom-image"
 
 
@@ -165,8 +168,9 @@ class TestLanguageGuidelines:
 
         guidelines = client._build_language_guidelines(COPERNIQ_ICP)
 
-        # Should include some of the avoid terms
-        assert "AI" in guidelines
+        # Should include some of the avoid terms (technical jargon)
+        # NOTE: "AI" is NOT avoided anymore - we use it for AI features
+        assert "API" in guidelines
 
     def test_includes_use_terms(self):
         """Test guidelines include terms to use."""
@@ -185,19 +189,23 @@ class TestUnderstandCodeMocked:
     @pytest.mark.asyncio
     async def test_understand_code_parses_response(self):
         """Test code understanding parses Gemini response."""
-        config = GeminiConfig(api_key="test-key")
+        # Use text_provider="gemini" to test the Gemini code path
+        config = GeminiConfig(api_key="test-key", text_provider="gemini")
         client = GeminiStoryboardClient(config=config)
 
-        # Mock response
+        # Mock response with new extraction verification fields
         mock_response = MagicMock()
         mock_response.text = json.dumps({
             "headline": "Track Your Jobs Effortlessly",
+            "tagline": "One platform for all your projects",
             "what_it_does": "See all your projects in one place.",
             "business_value": "Save 5 hours per week.",
             "who_benefits": "Project managers and owners",
             "differentiator": "Works on your phone in the field.",
             "pain_point_addressed": "Spreadsheet chaos.",
             "suggested_icon": "clipboard",
+            "raw_extracted_text": "def track_job(): pass - Job tracking function",
+            "extraction_confidence": 0.95,
         })
 
         # Mock the client
@@ -220,20 +228,24 @@ class TestUnderstandCodeMocked:
     @pytest.mark.asyncio
     async def test_understand_code_handles_markdown_response(self):
         """Test code understanding handles markdown-wrapped JSON."""
-        config = GeminiConfig(api_key="test-key")
+        # Use text_provider="gemini" to test the Gemini code path
+        config = GeminiConfig(api_key="test-key", text_provider="gemini")
         client = GeminiStoryboardClient(config=config)
 
-        # Mock response with markdown code block
+        # Mock response with markdown code block (includes new fields)
         mock_response = MagicMock()
         mock_response.text = """```json
 {
     "headline": "Test Headline",
+    "tagline": "Test tagline",
     "what_it_does": "Test",
     "business_value": "Test",
     "who_benefits": "Test",
     "differentiator": "Test",
     "pain_point_addressed": "Test",
-    "suggested_icon": "test"
+    "suggested_icon": "test",
+    "raw_extracted_text": "Test code content",
+    "extraction_confidence": 0.9
 }
 ```"""
 
@@ -252,8 +264,9 @@ class TestUnderstandCodeMocked:
 
     @pytest.mark.asyncio
     async def test_understand_code_fallback_on_parse_error(self):
-        """Test code understanding returns safe default on parse error."""
-        config = GeminiConfig(api_key="test-key")
+        """Test code understanding returns error state on parse error."""
+        # Use text_provider="gemini" to test the Gemini code path
+        config = GeminiConfig(api_key="test-key", text_provider="gemini")
         client = GeminiStoryboardClient(config=config)
 
         # Mock invalid response
@@ -271,9 +284,10 @@ class TestUnderstandCodeMocked:
             icp_preset=COPERNIQ_ICP,
         )
 
-        # Should return safe default
-        assert result.headline == "New Feature Coming Soon"
-        assert "easier" in result.what_it_does.lower()
+        # Should return error state (not generic copy) so CEO/CTO can review
+        # NOTE: New behavior - we show extraction failed instead of hiding with generic copy
+        assert "EXTRACTION FAILED" in result.headline or "FAILED" in result.headline.upper()
+        assert result.extraction_confidence == 0.0
 
 
 class TestUnderstandImageMocked:
@@ -286,7 +300,8 @@ class TestUnderstandImageMocked:
         client = GeminiStoryboardClient(config=config)
 
         # Verify client can be configured for image understanding
-        assert client.config.vision_model == "gemini-2.0-flash"
+        # NOTE: Field renamed to gemini_vision_model for multi-model architecture
+        assert client.config.gemini_vision_model == "models/gemini-2.0-flash"
         assert client._initialized is False
 
         # Test that bytes can be encoded to base64
@@ -364,17 +379,19 @@ class TestGenerateStoryboardMocked:
             assert "cta" in template
             assert "visual_style" in template
 
-        # Verify preview stage is future-focused
+        # NOTE: Badges removed for cleaner LinkedIn/email graphics
+        # All stages now have empty badges
         preview = get_stage_template("preview")
-        assert preview["badge"] == "SNEAK PEEK"
+        assert preview["badge"] == ""
+        assert "header_prefix" in preview
 
-        # Verify demo stage shows working product
         demo = get_stage_template("demo")
-        assert demo["badge"] == "LIVE DEMO"
+        assert demo["badge"] == ""
+        assert "visual_style" in demo
 
-        # Verify shipped stage shows availability
         shipped = get_stage_template("shipped")
-        assert shipped["badge"] == "AVAILABLE NOW"
+        assert shipped["badge"] == ""
+        assert "cta" in shipped
 
 
 class TestEnsureClientInitialization:

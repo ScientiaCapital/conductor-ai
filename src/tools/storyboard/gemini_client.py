@@ -1,53 +1,85 @@
 """
-Gemini Storyboard Client
-=========================
+Storyboard Client
+==================
 
-Shared client for Gemini Vision (understanding) and Image Generation (creating).
+Multi-model client for understanding (vision) and image generation.
 Implements the two-stage pipeline:
-1. UNDERSTAND - Analyze code/images, extract business value
-2. GENERATE - Create beautiful PNG storyboards
+1. UNDERSTAND - Analyze code/images, extract business value (Gemini or Qwen via OpenRouter)
+2. GENERATE - Create beautiful PNG storyboards (Gemini only)
 
-Uses Gemini 2.5 Flash for both stages.
-NO OpenAI - Gemini only.
+Vision model options:
+- gemini: Gemini 2.0 Flash (default)
+- qwen: Qwen 2.5 VL 72B via OpenRouter (better for complex documents)
+
+NO OpenAI - Gemini + Chinese VLMs only.
 """
 
 import os
 import json
 import base64
 import logging
-from typing import Any
+import httpx
+from typing import Any, Literal
 from dataclasses import dataclass, field
 
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
+# Vision model options for understanding (images)
+VisionModel = Literal["gemini", "qwen"]
+
+# Text model options for understanding (code/transcripts)
+TextModel = Literal["gemini", "deepseek"]
+
 
 class StoryboardUnderstanding(BaseModel):
     """Extracted understanding from code/roadmap analysis."""
 
     headline: str = Field(..., description="Catchy, benefit-focused headline (8 words max)")
+    tagline: str = Field(
+        default="One platform for contractors who do it all",
+        description="Dynamic tagline specific to content and persona (10 words max)"
+    )
     what_it_does: str = Field(..., description="Plain English description (2 sentences max)")
     business_value: str = Field(..., description="Quantified benefit (hours saved, % improvement)")
     who_benefits: str = Field(..., description="Target persona description")
     differentiator: str = Field(..., description="What makes this special (1 sentence)")
     pain_point_addressed: str = Field(..., description="The problem this solves")
     suggested_icon: str = Field(default="clipboard-check", description="Icon suggestion for visual")
+    # DEBUG/VERIFICATION fields - for CEO/CTO to verify extraction is correct
+    raw_extracted_text: str = Field(
+        default="",
+        description="Verbatim text/features extracted from input (for debugging/verification)"
+    )
+    extraction_confidence: float = Field(
+        default=1.0,
+        description="Confidence score 0-1. Below 0.7 = flag for review"
+    )
 
 
 @dataclass
 class GeminiConfig:
-    """Configuration for Gemini client."""
+    """Configuration for storyboard client."""
 
-    api_key: str | None = None
-    vision_model: str = "models/gemini-2.0-flash"  # For understanding
+    api_key: str | None = None  # Google API key for Gemini
+    openrouter_api_key: str | None = None  # OpenRouter API key for Qwen/DeepSeek
+    # Understanding models
+    vision_provider: VisionModel = "qwen"  # For images (default: qwen for better doc understanding)
+    text_provider: TextModel = "deepseek"  # For text/transcripts (default: deepseek for best reasoning)
+    gemini_vision_model: str = "models/gemini-2.0-flash"  # Gemini vision model (fallback)
+    qwen_model: str = "qwen/qwen2.5-vl-32b-instruct"  # Qwen 2.5 VL 32B - fast, reliable vision
+    deepseek_model: str = "deepseek/deepseek-v3.2"  # DeepSeek V3.2 - best MoE reasoning for text
+    # Generation model
     image_model: str = "models/gemini-3-pro-image-preview"  # For generating storyboard images (Nano Banana)
-    timeout: int = 60
+    timeout: int = 90
     max_retries: int = 3
 
     def __post_init__(self):
         if self.api_key is None:
             self.api_key = os.getenv("GOOGLE_API_KEY")
+        if self.openrouter_api_key is None:
+            self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
 
 
 class GeminiStoryboardClient:
@@ -106,6 +138,155 @@ class GeminiStoryboardClient:
                 "Install with: pip install google-genai"
             )
 
+    async def _call_openrouter_with_retry(
+        self,
+        payload: dict,
+        max_retries: int = 3,
+    ) -> str:
+        """
+        Call OpenRouter API with retry logic for rate limits.
+
+        Args:
+            payload: Request payload
+            max_retries: Number of retries on rate limit
+
+        Returns:
+            Model response text
+        """
+        import asyncio
+
+        if not self.config.openrouter_api_key:
+            raise ValueError("OPENROUTER_API_KEY environment variable not set")
+
+        headers = {
+            "Authorization": f"Bearer {self.config.openrouter_api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://coperniq.io",
+            "X-Title": "Coperniq Storyboard Generator",
+        }
+
+        for attempt in range(max_retries):
+            try:
+                async with httpx.AsyncClient(timeout=self.config.timeout) as client:
+                    response = await client.post(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        json=payload,
+                        headers=headers,
+                    )
+
+                    if response.status_code == 429:
+                        # Rate limited - wait and retry
+                        wait_time = (attempt + 1) * 5  # 5s, 10s, 15s
+                        logger.warning(f"[OPENROUTER] Rate limited, waiting {wait_time}s (attempt {attempt + 1}/{max_retries})")
+                        await asyncio.sleep(wait_time)
+                        continue
+
+                    response.raise_for_status()
+                    data = response.json()
+                    return data["choices"][0]["message"]["content"]
+
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429 and attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 5
+                    logger.warning(f"[OPENROUTER] Rate limited, waiting {wait_time}s")
+                    await asyncio.sleep(wait_time)
+                    continue
+                raise
+
+        raise Exception("Max retries exceeded for OpenRouter API")
+
+    async def _call_qwen_vision(
+        self,
+        prompt: str,
+        image_data: bytes | None = None,
+        images_data: list[bytes] | None = None,
+    ) -> str:
+        """
+        Call Qwen VL via OpenRouter for vision understanding.
+
+        Args:
+            prompt: Text prompt for the model
+            image_data: Single image bytes (optional)
+            images_data: Multiple image bytes (optional)
+
+        Returns:
+            Model response text
+        """
+        # Build message content
+        content = []
+
+        # Add images if provided
+        if images_data:
+            for img_bytes in images_data[:3]:  # Max 3 images
+                img_b64 = base64.b64encode(img_bytes).decode("utf-8")
+                content.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/png;base64,{img_b64}"
+                    }
+                })
+        elif image_data:
+            img_b64 = base64.b64encode(image_data).decode("utf-8")
+            content.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/png;base64,{img_b64}"
+                }
+            })
+
+        # Add text prompt
+        content.append({
+            "type": "text",
+            "text": prompt
+        })
+
+        payload = {
+            "model": self.config.qwen_model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": content
+                }
+            ],
+            "max_tokens": 4096,
+            "temperature": 0.3,
+        }
+
+        logger.info(f"[QWEN] Calling {self.config.qwen_model} via OpenRouter")
+        result = await self._call_openrouter_with_retry(payload)
+        logger.info(f"[QWEN] Response received ({len(result)} chars)")
+        return result
+
+    async def _call_deepseek(
+        self,
+        prompt: str,
+    ) -> str:
+        """
+        Call DeepSeek V3 via OpenRouter for text understanding (code/transcripts).
+
+        Args:
+            prompt: Text prompt for the model
+
+        Returns:
+            Model response text
+        """
+        payload = {
+            "model": self.config.deepseek_model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "max_tokens": 4096,
+            "temperature": 0.3,
+        }
+
+        logger.info(f"[DEEPSEEK] Calling {self.config.deepseek_model} via OpenRouter")
+        result = await self._call_openrouter_with_retry(payload)
+        logger.info(f"[DEEPSEEK] Response received ({len(result)} chars)")
+        return result
+
     async def understand_code(
         self,
         code_content: str,
@@ -131,8 +312,6 @@ class GeminiStoryboardClient:
         Returns:
             StoryboardUnderstanding with extracted insights
         """
-        self._ensure_client()
-
         # Build the analysis prompt
         language_guidelines = self._build_language_guidelines(icp_preset)
         audience_info = icp_preset.get("audience_personas", {}).get(audience, {})
@@ -152,25 +331,49 @@ They care about: {', '.join(audience_info.get('cares_about', ['efficiency', 'res
 {language_guidelines}
 
 EXTRACTION REQUIREMENTS:
-1. headline: Catchy, benefit-focused headline (8 words max). NO technical terms.
-2. what_it_does: Plain English description (2 sentences max). Like explaining to a friend.
-3. business_value: Quantified benefit. Use real numbers if possible (hours saved, % improvement).
-4. who_benefits: Who in the organization benefits most from this.
-5. differentiator: What makes this special compared to doing it manually.
-6. pain_point_addressed: The specific problem/frustration this eliminates.
-7. suggested_icon: A simple icon name that represents this (e.g., "clock", "dollar", "team").
+1. raw_extracted_text: EXTRACT the key technical elements from this code:
+   - Main class/function names and their purpose
+   - Core business logic (e.g., "calculates optimal route", "validates permits")
+   - Key integrations or data sources
+   Example: "VideoScriptGeneratorTool: generates 60-sec Loom scripts using DeepSeek V3. Inputs: prospect_company, industry, pain_point. Outputs: script with hook/demo/cta sections."
+
+2. extraction_confidence: How well did you understand this code? (0.0-1.0)
+   - 1.0 = Completely understood the business purpose
+   - 0.8 = Understood most of it
+   - 0.5 = Only partially understood
+   - Below 0.5 = Could not determine purpose
+
+3. headline: Catchy, benefit-focused headline (8 words max). Derived from what the code ACTUALLY does.
+   NOT ALLOWED: "Transform How You Work" or generic phrases
+
+4. tagline: Create a UNIQUE tagline for THIS specific code (10 words max). Examples:
+   - For scheduling features: "Never miss a job. Never double-book again."
+   - For payment tools: "Get paid faster. Spend less time chasing checks."
+   - For field tools: "Your crew's best friend, rain or shine."
+   The tagline should be specific to what THIS code does - NOT generic contractor messaging.
+
+5. what_it_does: Plain English description (2 sentences max). Based on ACTUAL code logic.
+   NOT ALLOWED: "A powerful capability that makes your work easier"
+
+6. business_value: Quantified benefit. Use real numbers if possible (hours saved, % improvement).
+7. who_benefits: Who in the organization benefits most from this.
+8. differentiator: What makes this special compared to doing it manually.
+9. pain_point_addressed: The specific problem/frustration this eliminates.
+10. suggested_icon: A simple icon name that represents this (e.g., "clock", "dollar", "team").
 
 CRITICAL RULES:
-- NO technical jargon (no API, database, async, etc.)
-- NO code details (no class names, function names, etc.)
-- NO proprietary information (no internal URLs, pricing, etc.)
+- EXTRACT from the actual code - do NOT make generic statements
+- NO technical jargon in the OUTPUT (but DO understand the code technically)
 - Write like you're explaining to a smart 5th grader
 - Focus on BENEFITS not FEATURES
-- If a competitor could use it to copy us, DON'T include it
+- The tagline MUST be unique to the content - never use generic phrases
 
 Return ONLY valid JSON matching this exact structure:
 {{
+    "raw_extracted_text": "...",
+    "extraction_confidence": 0.9,
     "headline": "...",
+    "tagline": "...",
     "what_it_does": "...",
     "business_value": "...",
     "who_benefits": "...",
@@ -180,13 +383,22 @@ Return ONLY valid JSON matching this exact structure:
 }}"""
 
         try:
-            response = self._client.models.generate_content(
-                model=self.config.vision_model,
-                contents=prompt,
-            )
+            # Route to DeepSeek or Gemini based on config
+            if self.config.text_provider == "deepseek":
+                logger.info(f"[UNDERSTAND] Using DeepSeek ({self.config.deepseek_model}) for code understanding")
+                response_text = await self._call_deepseek(prompt)
+            else:
+                # Use Gemini
+                self._ensure_client()
+                logger.info(f"[UNDERSTAND] Using Gemini ({self.config.gemini_vision_model}) for code understanding")
+                response = self._client.models.generate_content(
+                    model=self.config.gemini_vision_model,
+                    contents=prompt,
+                )
+                response_text = response.text
 
             # Parse JSON response
-            json_str = response.text.strip()
+            json_str = response_text.strip()
             # Handle markdown code blocks
             if json_str.startswith("```"):
                 json_str = json_str.split("```")[1]
@@ -198,20 +410,205 @@ Return ONLY valid JSON matching this exact structure:
             return StoryboardUnderstanding(**data)
 
         except json.JSONDecodeError as e:
-            logger.error(f"[GEMINI] Failed to parse response: {e}")
-            # Return a safe default
+            logger.error(f"[UNDERSTAND] Failed to parse response: {e}")
+            logger.error(f"[UNDERSTAND] Raw response was: {response_text[:500] if response_text else 'None'}")
+            # DO NOT return generic fallback - that hides extraction failures
+            # Instead, return with low confidence so user knows to check
             return StoryboardUnderstanding(
-                headline="New Feature Coming Soon",
-                what_it_does="A powerful new capability that makes your work easier.",
-                business_value="Save time and reduce errors.",
-                who_benefits="Your entire team",
-                differentiator="Built specifically for contractors like you.",
-                pain_point_addressed="Manual processes that waste your time.",
-                suggested_icon="star",
+                headline="EXTRACTION FAILED - Check Input",
+                tagline="Could not extract content from this code",
+                what_it_does="The AI could not parse this input. Try a different code file or check formatting.",
+                business_value="Unable to determine - extraction failed",
+                who_benefits="Unable to determine - extraction failed",
+                differentiator="Unable to determine - extraction failed",
+                pain_point_addressed="Unable to determine - extraction failed",
+                suggested_icon="alert-triangle",
+                raw_extracted_text=f"PARSE ERROR: {str(e)[:200]}",
+                extraction_confidence=0.0,  # Zero confidence = failed
             )
         except Exception as e:
             logger.error(f"[GEMINI] Understanding failed: {e}")
             raise
+
+    async def understand_transcript(
+        self,
+        transcript: str,
+        icp_preset: dict[str, Any],
+        audience: str = "c_suite",
+        context: str | None = None,
+    ) -> StoryboardUnderstanding:
+        """
+        Stage 1: Analyze call transcript/notes and extract persona-specific insights.
+
+        Designed for Loom transcripts, call summaries, meeting notes.
+        Uses FULL transcript (up to 32K chars) and extracts SPECIFIC details.
+
+        Args:
+            transcript: Full transcript text (longer than code - up to 32K)
+            icp_preset: ICP configuration dictionary
+            audience: Target audience persona - affects extraction focus
+            context: Optional context (e.g., "Sales demo call", "Discovery call")
+
+        Returns:
+            StoryboardUnderstanding with insights extracted FROM the transcript
+        """
+        # Build persona-specific extraction requirements
+        audience_info = icp_preset.get("audience_personas", {}).get(audience, {})
+        persona_hooks = audience_info.get("hooks", [])
+        persona_cares = audience_info.get("cares_about", [])
+
+        # Get Coperniq value props to map against
+        value_props = icp_preset.get("value_props", {})
+        proof_points = icp_preset.get("brand", {}).get("proof_points", {})
+
+        # Persona-specific extraction focus
+        persona_extraction = self._get_persona_extraction_focus(audience, audience_info)
+
+        prompt = f"""You are analyzing a CALL TRANSCRIPT or MEETING NOTES for Coperniq, a software platform for MEP & Energy contractors.
+
+{f"CONTEXT: {context}" if context else "CONTEXT: Call transcript / meeting notes"}
+
+=== TRANSCRIPT (EXTRACT SPECIFIC DETAILS FROM THIS) ===
+{transcript[:32000]}
+=== END TRANSCRIPT ===
+
+YOUR TASK: Extract SPECIFIC insights from this transcript that will resonate with a {audience_info.get('title', audience)} audience.
+
+TARGET PERSONA: {audience_info.get('title', audience)}
+- They care about: {', '.join(persona_cares)}
+- Tone: {audience_info.get('tone', 'Professional')}
+- Hooks that work: {', '.join(persona_hooks[:2])}
+
+{persona_extraction}
+
+COPERNIQ VALUE PROPS TO MAP AGAINST (use these if relevant to transcript):
+- Core: {', '.join(value_props.get('core', ['Projects', 'Dispatch', 'PPM']))}
+- AI Features: {', '.join(value_props.get('ai', ['Receptionist AI', 'Project Copilot']))}
+- Proof Points: {proof_points.get('completion_rate', '99% completion')} | {proof_points.get('payment_speed', '65% faster')}
+
+EXTRACTION REQUIREMENTS (pull SPECIFIC details from transcript - THIS IS CRITICAL):
+1. raw_extracted_text: VERBATIM extraction from the transcript:
+   - Key quotes and phrases the prospect used
+   - All numbers mentioned (dollars, hours, percentages)
+   - Company names, tools mentioned, pain points described
+   - Names and roles of people mentioned
+   Example: "Prospect: 'We lose about $3K per job on change orders.' PM: 'My guys are still using Excel, I can't get them off it.' Numbers: $3K/job, 8 field crews, 50 projects/month."
+
+2. extraction_confidence: How much of the transcript did you understand? (0.0-1.0)
+   - 1.0 = Clear transcript, extracted key points
+   - 0.8 = Mostly clear
+   - 0.5 = Partial audio issues or unclear
+
+3. headline: Use EXACT words/phrases from the call. (8 words max)
+   BAD: "Streamline Operations" (generic)
+   GOOD: "Stop Losing $3K Per Job to Spreadsheets" (their words + their numbers)
+   NOT ALLOWED: "Transform How You Work" or generic phrases
+
+4. tagline: Build from THEIR pain point, not generic contractor pain. (10 words max)
+   BAD: "One platform for contractors" (generic)
+   GOOD: "Finally get your PM off Excel and home by 5pm" (their situation)
+   NOT ALLOWED: "Built for contractors" or other canned phrases
+
+5. what_it_does: Summarize using THEIR words and situation.
+   NOT ALLOWED: "A powerful capability that makes your work easier"
+
+6. business_value: Use SPECIFIC numbers from transcript.
+   - If they said "we lose 2 hours a day" → use "2 hours/day"
+   - If they said "$50K in change orders" → use "$50K"
+   - DO NOT generalize to "save time and money"
+
+7. who_benefits: Who specifically in the organization was mentioned?
+8. differentiator: What made this stand out vs their current way (from transcript)?
+9. pain_point_addressed: Use THEIR EXACT WORDS for the pain point.
+10. suggested_icon: Icon representing the main theme.
+
+CRITICAL RULES (BULLETPROOF EXTRACTION):
+- If they said it, USE IT. Do not paraphrase away specifics.
+- Numbers are GOLD - preserve every number exactly as stated.
+- Names and roles are GOLD - preserve who said what.
+- The CEO/CTO will review this - it MUST match what was said.
+- If you cannot find specific content, say "Not mentioned in transcript"
+- NEVER output generic phrases like "save time and money" if they gave you specifics.
+
+Return ONLY valid JSON matching this exact structure:
+{{
+    "raw_extracted_text": "...",
+    "extraction_confidence": 0.9,
+    "headline": "...",
+    "tagline": "...",
+    "what_it_does": "...",
+    "business_value": "...",
+    "who_benefits": "...",
+    "differentiator": "...",
+    "pain_point_addressed": "...",
+    "suggested_icon": "..."
+}}"""
+
+        try:
+            # Route to DeepSeek or Gemini based on config
+            if self.config.text_provider == "deepseek":
+                logger.info(f"[UNDERSTAND] Using DeepSeek ({self.config.deepseek_model}) for transcript understanding")
+                response_text = await self._call_deepseek(prompt)
+            else:
+                # Use Gemini
+                self._ensure_client()
+                logger.info(f"[UNDERSTAND] Using Gemini ({self.config.gemini_vision_model}) for transcript understanding")
+                response = self._client.models.generate_content(
+                    model=self.config.gemini_vision_model,
+                    contents=prompt,
+                )
+                response_text = response.text
+
+            # Parse JSON response
+            json_str = response_text.strip()
+            if json_str.startswith("```"):
+                json_str = json_str.split("```")[1]
+                if json_str.startswith("json"):
+                    json_str = json_str[4:]
+                json_str = json_str.strip()
+
+            data = json.loads(json_str)
+            logger.info(f"[UNDERSTAND] Successfully extracted insights from transcript for {audience}")
+            return StoryboardUnderstanding(**data)
+
+        except Exception as e:
+            logger.error(f"[GEMINI] Transcript understanding failed: {e}")
+            raise
+
+    def _get_persona_extraction_focus(self, audience: str, audience_info: dict) -> str:
+        """Get persona-specific extraction instructions."""
+        extractions = {
+            "business_owner": """FOCUS FOR BUSINESS OWNER:
+- What PROFIT or REVENUE impact was discussed?
+- What TIME savings would they get back (family time, less nights/weekends)?
+- What HEADACHES would disappear?
+- Did they mention competitors or falling behind?""",
+
+            "c_suite": """FOCUS FOR C-SUITE EXECUTIVE:
+- What ROI or METRICS were mentioned?
+- What SCALABILITY or GROWTH enablement was discussed?
+- What DATA or VISIBILITY improvements?
+- What COMPETITIVE advantages?""",
+
+            "btl_champion": """FOCUS FOR OPERATIONS/PROJECT MANAGER:
+- What DAILY FRUSTRATIONS would be eliminated?
+- What would make them LOOK GOOD to leadership?
+- What COORDINATION problems were mentioned?
+- What would their TEAM actually use?""",
+
+            "top_tier_vc": """FOCUS FOR VC/INVESTOR:
+- What MARKET SIZE indicators were mentioned?
+- What TRACTION or GROWTH metrics?
+- What MOAT or defensibility?
+- What makes this a CATEGORY-DEFINING opportunity?""",
+
+            "field_crew": """FOCUS FOR FIELD CREW:
+- What would make their JOB EASIER?
+- What PAPERWORK or HASSLE would disappear?
+- What TOOLS would they actually use on the job site?
+- Keep it SIMPLE - 5th grade vocabulary.""",
+        }
+        return extractions.get(audience, extractions["c_suite"])
 
     async def understand_image(
         self,
@@ -223,7 +620,7 @@ Return ONLY valid JSON matching this exact structure:
         """
         Stage 1: Analyze image (Miro screenshot, roadmap) and extract business value.
 
-        Uses Gemini Vision to analyze visual content and extract sanitized insights.
+        Uses Qwen VL (via OpenRouter) or Gemini Vision based on config.
         Extra sanitization for IP protection when analyzing roadmaps.
 
         Args:
@@ -235,8 +632,6 @@ Return ONLY valid JSON matching this exact structure:
         Returns:
             StoryboardUnderstanding with extracted insights
         """
-        self._ensure_client()
-
         # Handle base64 string input
         if isinstance(image_data, str):
             if image_data.startswith("data:"):
@@ -250,38 +645,71 @@ Return ONLY valid JSON matching this exact structure:
         language_guidelines = self._build_language_guidelines(icp_preset)
         audience_info = icp_preset.get("audience_personas", {}).get(audience, {})
 
-        sanitization_rules = ""
-        if sanitize_ip:
-            sanitization_rules = """
-CRITICAL IP SANITIZATION:
-- DO NOT include any text visible in the image verbatim
-- DO NOT mention specific feature names, product names, or project codes
-- DO NOT reference dates, timelines, or milestones specifically
-- Transform all specifics into general themes
-- If you see "Q1 2025: Launch Feature X" → say "Exciting capabilities coming soon"
+        # FULL EXTRACTION - Pull EVERYTHING from the image
+        # Marketing transformation happens in generate_storyboard(), not here
+        extraction_rules = """
+EXTRACTION RULES - Pull EVERYTHING from the image (THIS IS CRITICAL):
+- EXTRACT every feature name, product area, and label visible
+- INCLUDE all metrics, dates, percentages, numbers EXACTLY as shown
+- PRESERVE hierarchy/structure (e.g., "5 product clouds", "3 phases")
+- USE exact terminology as written (e.g., "Receptionist AI BETA", "Document Engine V1")
+- For roadmaps: capture timing (Q1/Q2/H1), version labels (BETA, V1, V2)
+- For Miro boards: extract workflow steps, connections, labels
+- For diagrams: capture all boxes, arrows, connections
+
+The GENERATION phase will transform this into marketing-safe output.
+EXTRACT FULLY NOW - sanitization happens later.
 """
 
-        prompt = f"""Analyze this roadmap/planning image and extract a "Coming Soon" teaser for a {icp_preset.get('target', 'business')} audience.
+        prompt = f"""Analyze this image and EXTRACT ALL CONTENT for business messaging.
+
+CRITICAL: You MUST extract the ACTUAL content from this image.
+Do NOT generate generic copy. Do NOT make things up.
+If you cannot read something clearly, say so in raw_extracted_text.
 
 TARGET AUDIENCE: {audience_info.get('title', audience)}
 They care about: {', '.join(audience_info.get('cares_about', ['efficiency', 'results']))}
 
 {language_guidelines}
 
-{sanitization_rules}
+{extraction_rules}
 
-EXTRACTION REQUIREMENTS (create an EXCITING TEASER, not a summary):
-1. headline: Teaser headline that builds excitement (8 words max). NO specifics.
-2. what_it_does: Vague but exciting description of what's coming. NO details.
-3. business_value: Promise of future value. Be aspirational.
-4. who_benefits: Who will love this when it arrives.
-5. differentiator: Why they should be excited (without specifics).
-6. pain_point_addressed: The problem that will be solved.
-7. suggested_icon: Icon representing innovation/future (e.g., "rocket", "lightbulb").
+EXTRACTION REQUIREMENTS (extract ACTUAL content from the image):
+1. raw_extracted_text: LIST EVERYTHING visible in the image. Every label, every feature name, every number.
+   Example for a roadmap: "Coperniq Intelligence: Receptionist AI BETA Q1, AI Agent Builder BETA Q1, Design AI BETA Q2. Sales Cloud: Catalog 2.0 V2, Proposals V1..."
+   Example for Miro: "Workflow: Lead capture → Qualification → Proposal → Close. Labels: Hot Lead, Warm Lead, Cold Lead..."
+
+2. extraction_confidence: How confident are you that you read the image correctly? (0.0-1.0)
+   - 1.0 = Crystal clear, read everything
+   - 0.8 = Most content clear, some fuzzy
+   - 0.5 = Significant portions unclear
+   - Below 0.5 = Low quality, may need re-upload
+
+3. headline: Extract the MAIN theme from the image using ACTUAL words visible. (8 words max)
+   Example from roadmap: "5 Product Clouds Launching H1 2026"
+   Example from Miro: "Lead-to-Close Workflow in 4 Steps"
+   NOT ALLOWED: "Transform How You Work" or other generic phrases
+
+4. tagline: Create tagline FROM what you extracted, not generic messaging. (10 words max)
+   Example: "From AI Receptionist to Three-Phase Inverters"
+   NOT ALLOWED: "Built for contractors" or other canned phrases
+
+5. what_it_does: Describe the SPECIFIC features/areas shown. Name them explicitly.
+   Example: "Coperniq Intelligence brings Receptionist AI and AI Agent Builder in Q1, followed by Design AI in Q2."
+   NOT ALLOWED: "A powerful capability that makes your work easier"
+
+6. business_value: Use SPECIFIC numbers from the image if present.
+7. who_benefits: Based on what you see, who would use this?
+8. differentiator: What makes THIS specific content special?
+9. pain_point_addressed: What problem does THIS specific content solve?
+10. suggested_icon: Icon representing what you see (e.g., "calendar", "robot", "truck").
 
 Return ONLY valid JSON matching this exact structure:
 {{
+    "raw_extracted_text": "...",
+    "extraction_confidence": 0.9,
     "headline": "...",
+    "tagline": "...",
     "what_it_does": "...",
     "business_value": "...",
     "who_benefits": "...",
@@ -291,21 +719,29 @@ Return ONLY valid JSON matching this exact structure:
 }}"""
 
         try:
-            # Create image part for multimodal request
-            from google.genai import types
+            # Route to Qwen VL or Gemini based on config
+            if self.config.vision_provider == "qwen":
+                logger.info(f"[UNDERSTAND] Using Qwen VL ({self.config.qwen_model}) for image understanding")
+                response_text = await self._call_qwen_vision(prompt, image_data=image_bytes)
+            else:
+                # Use Gemini
+                self._ensure_client()
+                logger.info(f"[UNDERSTAND] Using Gemini ({self.config.gemini_vision_model}) for image understanding")
+                from google.genai import types
 
-            image_part = types.Part.from_bytes(
-                data=image_bytes,
-                mime_type="image/png",  # Assume PNG, could detect
-            )
+                image_part = types.Part.from_bytes(
+                    data=image_bytes,
+                    mime_type="image/png",
+                )
 
-            response = self._client.models.generate_content(
-                model=self.config.vision_model,
-                contents=[image_part, prompt],
-            )
+                response = self._client.models.generate_content(
+                    model=self.config.gemini_vision_model,
+                    contents=[image_part, prompt],
+                )
+                response_text = response.text
 
             # Parse JSON response
-            json_str = response.text.strip()
+            json_str = response_text.strip()
             if json_str.startswith("```"):
                 json_str = json_str.split("```")[1]
                 if json_str.startswith("json"):
@@ -341,8 +777,6 @@ Return ONLY valid JSON matching this exact structure:
         Returns:
             StoryboardUnderstanding with combined insights from all images
         """
-        self._ensure_client()
-
         if len(images_data) > 3:
             logger.warning(f"Received {len(images_data)} images, using first 3 only")
             images_data = images_data[:3]
@@ -351,17 +785,27 @@ Return ONLY valid JSON matching this exact structure:
         language_guidelines = self._build_language_guidelines(icp_preset)
         audience_info = icp_preset.get("audience_personas", {}).get(audience, {})
 
-        sanitization_rules = ""
-        if sanitize_ip:
-            sanitization_rules = """
-CRITICAL IP SANITIZATION:
-- DO NOT include any text visible in the images verbatim
-- DO NOT mention specific feature names, product names, or project codes
-- DO NOT reference dates, timelines, or milestones specifically
-- Transform all specifics into general themes
+        # FULL EXTRACTION - Pull EVERYTHING from ALL images
+        # Marketing transformation happens in generate_storyboard(), not here
+        extraction_rules = """
+EXTRACTION RULES - Pull EVERYTHING from ALL images (THIS IS CRITICAL):
+- EXTRACT every feature name, product area, and label visible in EACH image
+- INCLUDE all metrics, dates, percentages, numbers EXACTLY as shown
+- PRESERVE hierarchy/structure (e.g., "5 product clouds", "3 phases")
+- USE exact terminology as written (e.g., "Receptionist AI BETA", "Document Engine V1")
+- For roadmaps: capture timing (Q1/Q2/H1), version labels (BETA, V1, V2)
+- For Miro boards: extract workflow steps, connections, labels
+- For diagrams: capture all boxes, arrows, connections
+
+EXTRACT FROM EACH IMAGE SEPARATELY FIRST, then synthesize.
+The GENERATION phase will transform this into marketing-safe output.
 """
 
-        prompt = f"""Analyze these {len(images_data)} images TOGETHER and synthesize a UNIFIED business value message.
+        prompt = f"""Analyze these {len(images_data)} images and EXTRACT ALL CONTENT from each one.
+
+CRITICAL: You MUST extract the ACTUAL content from each image.
+Do NOT generate generic copy. Do NOT make things up.
+If you cannot read something clearly, say so in raw_extracted_text.
 
 The images may include:
 - CTO roadmap or planning documents
@@ -369,29 +813,50 @@ The images may include:
 - Marketing materials or campaign visuals
 - Product screenshots or demos
 
-Combine insights from ALL images into ONE cohesive storyboard message.
-
 TARGET AUDIENCE: {audience_info.get('title', audience)}
 They care about: {', '.join(audience_info.get('cares_about', ['efficiency', 'results']))}
 
 {language_guidelines}
 
-{sanitization_rules}
+{extraction_rules}
 
-EXTRACTION REQUIREMENTS (synthesize from ALL images):
-1. headline: Catchy, benefit-focused headline (8 words max). Capture the overall theme.
-2. what_it_does: Plain English description (2 sentences max). Combine key concepts from all images.
-3. business_value: Quantified benefit. Use real numbers if visible in any image.
-4. who_benefits: Who in the organization benefits most.
-5. differentiator: What makes this special - look across all images for unique value.
-6. pain_point_addressed: The specific problem/frustration this eliminates.
-7. suggested_icon: A simple icon name that represents the overall theme.
+EXTRACTION REQUIREMENTS (extract from EACH image, then synthesize):
+1. raw_extracted_text: LIST EVERYTHING visible across ALL images. Organize by image:
+   "IMAGE 1 (Roadmap): Coperniq Intelligence: Receptionist AI BETA Q1, AI Agent Builder BETA Q1..."
+   "IMAGE 2 (Miro): Workflow steps: Lead → Qualify → Propose → Close..."
+   "IMAGE 3 (Campaign): Headline: Get Paid Faster, Subhead: 65% faster payment collection..."
 
-CRITICAL: Create ONE unified message, not separate descriptions for each image.
+2. extraction_confidence: How confident are you that you read ALL images correctly? (0.0-1.0)
+   - 1.0 = All images crystal clear
+   - 0.8 = Most content clear
+   - 0.5 = Significant portions unclear
+
+3. headline: Extract/synthesize MAIN theme using ACTUAL words from the images. (8 words max)
+   Example: "5 Product Clouds Plus Lead-to-Close Workflow"
+   NOT ALLOWED: "Transform How You Work" or other generic phrases
+
+4. tagline: Create tagline FROM what you extracted across images. (10 words max)
+   Example: "From AI Receptionist to Closed Deal in 4 Steps"
+   NOT ALLOWED: "Built for contractors" or other canned phrases
+
+5. what_it_does: Describe SPECIFIC features/areas shown across images. Name them explicitly.
+   Example: "Combines Coperniq Intelligence (Receptionist AI, Agent Builder) with streamlined lead workflow..."
+   NOT ALLOWED: "A powerful capability that makes your work easier"
+
+6. business_value: Use SPECIFIC numbers from any image if present.
+7. who_benefits: Based on what you see across images, who would use this?
+8. differentiator: What makes THIS combined content special?
+9. pain_point_addressed: What problem does THIS content solve?
+10. suggested_icon: Icon representing the combined theme.
+
+CRITICAL: Synthesize into ONE unified message, but base it on ACTUAL extracted content.
 
 Return ONLY valid JSON matching this exact structure:
 {{
+    "raw_extracted_text": "...",
+    "extraction_confidence": 0.9,
     "headline": "...",
+    "tagline": "...",
     "what_it_does": "...",
     "business_value": "...",
     "who_benefits": "...",
@@ -401,28 +866,36 @@ Return ONLY valid JSON matching this exact structure:
 }}"""
 
         try:
-            from google.genai import types
+            # Route to Qwen VL or Gemini based on config
+            if self.config.vision_provider == "qwen":
+                logger.info(f"[UNDERSTAND] Using Qwen VL ({self.config.qwen_model}) for {len(images_data)} images")
+                response_text = await self._call_qwen_vision(prompt, images_data=images_data)
+            else:
+                # Use Gemini
+                self._ensure_client()
+                logger.info(f"[UNDERSTAND] Using Gemini ({self.config.gemini_vision_model}) for {len(images_data)} images")
+                from google.genai import types
 
-            # Create image parts for all images
-            content_parts = []
-            for i, img_bytes in enumerate(images_data):
-                image_part = types.Part.from_bytes(
-                    data=img_bytes,
-                    mime_type="image/png",
+                # Create image parts for all images
+                content_parts = []
+                for i, img_bytes in enumerate(images_data):
+                    image_part = types.Part.from_bytes(
+                        data=img_bytes,
+                        mime_type="image/png",
+                    )
+                    content_parts.append(image_part)
+
+                # Add the prompt at the end
+                content_parts.append(prompt)
+
+                response = self._client.models.generate_content(
+                    model=self.config.gemini_vision_model,
+                    contents=content_parts,
                 )
-                content_parts.append(image_part)
-                logger.info(f"[GEMINI] Added image {i+1}/{len(images_data)} to multi-image request")
-
-            # Add the prompt at the end
-            content_parts.append(prompt)
-
-            response = self._client.models.generate_content(
-                model=self.config.vision_model,
-                contents=content_parts,
-            )
+                response_text = response.text
 
             # Parse JSON response
-            json_str = response.text.strip()
+            json_str = response_text.strip()
             if json_str.startswith("```"):
                 json_str = json_str.split("```")[1]
                 if json_str.startswith("json"):
@@ -512,25 +985,56 @@ CRITICAL: NO "Book a demo" or customer CTAs. This is for INVESTORS.
 - Confidence and data, not sales pitch"""
         else:
             # Customer-focused storyboard (sales, internal, field crew)
+            # NO badges - these are for LinkedIn/email graphics, not live demos
+
+            # Include raw extraction for context (if available)
+            raw_context = ""
+            if understanding.raw_extracted_text:
+                raw_context = f"""
+RAW EXTRACTION (for context - transform into marketing language):
+{understanding.raw_extracted_text[:500]}
+Extraction Confidence: {understanding.extraction_confidence}
+"""
+
             content_section = f"""CONTENT TO DISPLAY:
-- Badge: "{stage_template['badge']}"
 - Headline: "{understanding.headline}"
 - Description: "{understanding.what_it_does}"
 - Value Proposition: "{understanding.business_value}"
 - For: "{understanding.who_benefits}"
 - Key Benefit: "{understanding.differentiator}"
 - Problem Solved: "{understanding.pain_point_addressed}"
-- Call to Action: "{stage_template['cta']}"
+
+{raw_context}
+
+MARKETING TRANSFORMATION (CRITICAL):
+Transform the extracted specifics into LinkedIn-ready marketing language:
+- Feature names are OK to use (e.g., "Receptionist AI", "Document Engine", "Partner Portal")
+- Transform technical details → business benefits
+- Remove internal codes, version numbers (BETA, V1 → just the feature name)
+- Keep it SPECIFIC to what was extracted, NOT generic contractor messaging
+
+Example transforms:
+- "Receptionist AI BETA Q1" → "AI That Answers Your Calls 24/7"
+- "Document Engine V1" → "Contracts That Sign Themselves"
+- "Partner Portal V1" → "Your Partners, One Portal Away"
+- "$3K lost per job" → "Stop Losing $3K Per Job"
+
+NEVER output generic copy like "Transform How You Work" or "Save time and money"
+ALWAYS derive messaging from the specific content that was extracted.
+If the headline says "EXTRACTION FAILED", display an error state instead.
 
 TARGET AUDIENCE: {persona.get('title', 'Business Professional')}
 TONE: {persona.get('tone', 'Professional and friendly')}"""
+
+        # Use dynamic tagline from understanding (falls back to brand tagline if not set)
+        dynamic_tagline = understanding.tagline if understanding.tagline else brand['tagline']
 
         # Build the image generation prompt
         prompt = f"""Create a UNIQUE professional one-page executive storyboard infographic.
 
 GENERATION SEED: {unique_seed} (use this to create variation in layout and icons)
 
-BRAND: {brand['company']} - "{brand['tagline']}"
+BRAND: {brand['company']} - "{dynamic_tagline}"
 
 {content_section}
 

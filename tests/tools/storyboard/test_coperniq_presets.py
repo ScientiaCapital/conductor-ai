@@ -72,16 +72,18 @@ class TestLanguageStyleRules:
     """Tests for language style avoid/use rules."""
 
     def test_avoid_contains_technical_jargon(self):
-        """Avoid list should contain technical jargon."""
+        """Avoid list should contain technical jargon that confuses contractors."""
         avoid = COPERNIQ_ICP["language_style"]["avoid"]
-        technical_terms = ["AI", "machine learning", "API", "microservices"]
+        # NOTE: "AI" and "machine learning" are NOT avoided - we use them for AI features
+        technical_terms = ["API", "microservices", "backend", "frontend"]
         for term in technical_terms:
             assert term in avoid, f"'{term}' should be in avoid list"
 
     def test_avoid_contains_corporate_speak(self):
-        """Avoid list should contain corporate speak."""
+        """Avoid list should contain marketing fluff."""
         avoid = COPERNIQ_ICP["language_style"]["avoid"]
-        corporate_terms = ["leverage", "synergy", "paradigm"]
+        # NOTE: "leverage" is not avoided anymore - it's valid business language
+        corporate_terms = ["synergy", "paradigm", "holistic"]
         for term in corporate_terms:
             assert term in avoid, f"'{term}' should be in avoid list"
 
@@ -188,11 +190,12 @@ class TestStageTemplates:
             for field in required_fields:
                 assert field in template, f"Stage {stage} missing '{field}'"
 
-    def test_preview_stage_is_future_focused(self):
-        """Preview stage should be future-focused."""
+    def test_preview_stage_is_professional(self):
+        """Preview stage should be professional (no badges for LinkedIn/email)."""
         template = STAGE_TEMPLATES[StoryboardStage.PREVIEW]
-        assert "coming" in template["header_prefix"].lower()
-        assert "SNEAK PEEK" in template["badge"]
+        # NOTE: Badge is now empty - we removed badges for cleaner marketing graphics
+        assert template["badge"] == ""
+        assert "header_prefix" in template
 
 
 class TestGetICPPreset:
@@ -238,19 +241,25 @@ class TestGetStageTemplate:
     """Tests for get_stage_template function."""
 
     def test_get_preview_template(self):
-        """Should return preview template."""
+        """Should return preview template with no badge."""
         template = get_stage_template(StoryboardStage.PREVIEW)
-        assert template["badge"] == "SNEAK PEEK"
+        # NOTE: Badges removed for cleaner LinkedIn/email graphics
+        assert template["badge"] == ""
+        assert "header_prefix" in template
 
     def test_get_demo_template(self):
-        """Should return demo template."""
+        """Should return demo template with no badge."""
         template = get_stage_template(StoryboardStage.DEMO)
-        assert template["badge"] == "LIVE DEMO"
+        # NOTE: Badges removed for cleaner LinkedIn/email graphics
+        assert template["badge"] == ""
+        assert "visual_style" in template
 
     def test_get_template_by_string(self):
         """Should accept string value."""
         template = get_stage_template("shipped")
-        assert template["badge"] == "AVAILABLE NOW"
+        # NOTE: Badges removed for cleaner LinkedIn/email graphics
+        assert template["badge"] == ""
+        assert "cta" in template
 
 
 class TestSanitizeContent:
@@ -309,7 +318,8 @@ class TestBuildLanguageGuidelines:
         """Guidelines should include words to avoid."""
         guidelines = build_language_guidelines()
         assert "AVOID" in guidelines
-        assert "AI" in guidelines
+        # NOTE: "AI" is NOT avoided anymore - we use it for AI features like Receptionist AI
+        assert "API" in guidelines  # Technical jargon is still avoided
 
     def test_includes_use_words(self):
         """Guidelines should include words to use."""
