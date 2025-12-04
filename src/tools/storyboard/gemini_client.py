@@ -169,7 +169,7 @@ class GeminiConfig:
     # Model identifiers
     gemini_vision_model: str = "models/gemini-2.0-flash"  # Gemini vision model (fallback)
     qwen_model: str = "qwen/qwen2.5-vl-72b-instruct"  # Qwen 2.5 VL 72B - vision + doc understanding
-    deepseek_model: str = "deepseek/deepseek-r1-0528"  # DeepSeek R1-0528 - reasoning + structured extraction
+    deepseek_model: str = "deepseek/deepseek-chat"  # DeepSeek V3 - fast, excellent for structured extraction
 
     # Stage 3 (GENERATE): Image generation (Gemini only - no alternatives)
     image_model: str = "models/gemini-3-pro-image-preview"  # Nano Banana - FREE during preview
