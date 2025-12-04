@@ -44,6 +44,7 @@ class VideoProvider(str, Enum):
     PIKA = "pika"             # Quick iterations
     LUMA = "luma"             # Dream Machine - Realistic
     MINIMAX = "minimax"       # Alias for HaiLuo
+    REPLICATE = "replicate"   # Replicate - aggregator with Luma, Kling, etc.
 
 
 class VideoAspectRatio(str, Enum):
@@ -137,6 +138,16 @@ PROVIDER_CONFIGS = {
         supports_image_to_video=True,
         supports_text_to_video=True,
         quality_tier="premium",
+    ),
+    VideoProvider.REPLICATE: ProviderConfig(
+        name="Replicate (Luma Ray Flash)",
+        api_base="https://api.replicate.com/v1",
+        env_key="REPLICATE_API_TOKEN",
+        cost_per_second=0.02,
+        max_duration=9,
+        supports_image_to_video=True,
+        supports_text_to_video=True,
+        quality_tier="standard",
     ),
 }
 
@@ -250,7 +261,7 @@ class VideoGeneratorTool(BaseTool):
                     "provider": {
                         "type": "string",
                         "description": "Video generation provider",
-                        "enum": ["kling", "hailuo", "minimax", "runway", "pika", "luma"],
+                        "enum": ["kling", "hailuo", "minimax", "runway", "pika", "luma", "replicate"],
                         "default": "kling",
                     },
                     "duration_seconds": {
@@ -542,6 +553,119 @@ class VideoGeneratorTool(BaseTool):
         return await self._poll_luma_completion(
             session, config, api_key, generation_id, request
         )
+
+    async def _generate_with_replicate(
+        self,
+        session: aiohttp.ClientSession,
+        request: VideoGenerationRequest,
+        api_key: str,
+    ) -> dict[str, Any]:
+        """Generate video using Replicate API with Luma Ray Flash model."""
+        config = PROVIDER_CONFIGS[VideoProvider.REPLICATE]
+
+        # Use Luma Ray Flash 2 - fast and cost-effective
+        model_version = "luma/ray-flash-2-720p"
+
+        # Build input payload for Luma Ray Flash
+        input_payload: dict[str, Any] = {
+            "prompt": request.prompt,
+            "aspect_ratio": request.aspect_ratio.value,
+            "duration": "5s" if request.duration_seconds <= 5 else "9s",
+        }
+
+        if request.reference_image_url:
+            input_payload["start_image_url"] = request.reference_image_url
+
+        payload = {
+            "version": model_version,
+            "input": input_payload,
+        }
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Prefer": "wait",  # Wait for result synchronously if possible
+        }
+
+        # Create prediction
+        async with session.post(
+            f"{config.api_base}/predictions",
+            json=payload,
+            headers=headers,
+        ) as response:
+            if response.status not in (200, 201, 202):
+                error_text = await response.text()
+                raise ValueError(f"Replicate API error: {response.status} - {error_text}")
+
+            result = await response.json()
+            prediction_id = result.get("id")
+            status = result.get("status")
+
+            # If already completed (due to Prefer: wait)
+            if status == "succeeded":
+                return self._format_replicate_result(result, request)
+
+        # Poll for completion
+        return await self._poll_replicate_completion(
+            session, config, api_key, prediction_id, request
+        )
+
+    async def _poll_replicate_completion(
+        self,
+        session: aiohttp.ClientSession,
+        config: ProviderConfig,
+        api_key: str,
+        prediction_id: str,
+        request: VideoGenerationRequest,
+    ) -> dict[str, Any]:
+        """Poll Replicate API for video generation completion."""
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+        }
+
+        for _ in range(self.MAX_POLL_ATTEMPTS):
+            async with session.get(
+                f"{config.api_base}/predictions/{prediction_id}",
+                headers=headers,
+            ) as response:
+                if response.status != 200:
+                    await asyncio.sleep(self.POLL_INTERVAL_SECONDS)
+                    continue
+
+                result = await response.json()
+                status = result.get("status", "").lower()
+
+                if status == "succeeded":
+                    return self._format_replicate_result(result, request)
+                elif status in ("failed", "canceled"):
+                    error = result.get("error", "Unknown error")
+                    raise ValueError(f"Replicate generation failed: {error}")
+
+                await asyncio.sleep(self.POLL_INTERVAL_SECONDS)
+
+        raise TimeoutError("Replicate video generation timed out")
+
+    def _format_replicate_result(
+        self,
+        result: dict[str, Any],
+        request: VideoGenerationRequest,
+    ) -> dict[str, Any]:
+        """Format Replicate API result to standard format."""
+        output = result.get("output")
+
+        # Output can be a URL string or list of URLs
+        video_url = output[0] if isinstance(output, list) else output
+
+        return {
+            "success": True,
+            "provider": "replicate",
+            "video_url": video_url,
+            "prompt": request.prompt,
+            "duration_seconds": request.duration_seconds,
+            "aspect_ratio": request.aspect_ratio.value,
+            "prediction_id": result.get("id"),
+            "model": result.get("version", "luma/ray-flash-2-720p"),
+        }
 
     async def _poll_for_completion(
         self,
@@ -837,6 +961,8 @@ class VideoGeneratorTool(BaseTool):
                     result = await self._generate_with_pika(session, request, api_key)
                 elif provider == VideoProvider.LUMA:
                     result = await self._generate_with_luma(session, request, api_key)
+                elif provider == VideoProvider.REPLICATE:
+                    result = await self._generate_with_replicate(session, request, api_key)
                 else:
                     return ToolResult(
                         tool_name=self.definition.name,
@@ -921,7 +1047,7 @@ class BatchVideoGeneratorTool(BaseTool):
                     "provider": {
                         "type": "string",
                         "description": "Video provider for all scenes",
-                        "enum": ["kling", "hailuo", "runway", "pika", "luma"],
+                        "enum": ["kling", "hailuo", "runway", "pika", "luma", "replicate"],
                         "default": "kling",
                     },
                     "style": {

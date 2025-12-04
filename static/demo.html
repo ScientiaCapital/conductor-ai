@@ -488,6 +488,8 @@ Expected ROI: 2 hours saved per crew per day
                     <select id="outputFormatSelect">
                         <option value="infographic" selected>Infographic (Horizontal 16:9)</option>
                         <option value="storyboard">Storyboard (Vertical 9:16)</option>
+                        <option value="video_horizontal">Video (Horizontal 16:9)</option>
+                        <option value="video_vertical">Video (Vertical 9:16)</option>
                     </select>
                 </div>
 
@@ -545,9 +547,14 @@ Expected ROI: 2 hours saved per crew per day
                 <div class="result-image">
                     <img id="resultImg" src="" alt="Generated Storyboard">
                 </div>
+                <div class="result-video hidden">
+                    <video id="resultVideo" controls autoplay loop style="max-width: 100%; border-radius: 8px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);">
+                        Your browser does not support video playback.
+                    </video>
+                </div>
 
                 <div class="button-group">
-                    <button class="btn-primary" onclick="downloadImage()">
+                    <button class="btn-primary" id="downloadBtn" onclick="downloadResult()">
                         Download PNG
                     </button>
                     <button class="btn-secondary" onclick="openInNewTab()">
@@ -568,6 +575,8 @@ Expected ROI: 2 hours saved per crew per day
         let imagesBase64 = [];
         const MAX_IMAGES = 3;
         let resultImageBase64 = null;
+        let resultVideoBase64 = null;
+        let resultType = 'image'; // 'image' or 'video'
         let examples = [];
 
         // Initialize
@@ -820,12 +829,38 @@ Expected ROI: 2 hours saved per crew per day
             }
         }
 
-        // Display result
+        // Display result - handles both image and video
         function displayResult(result) {
-            resultImageBase64 = result.storyboard_png;
+            const resultImageDiv = document.querySelector('.result-image');
+            const resultVideoDiv = document.querySelector('.result-video');
+            const downloadBtn = document.getElementById('downloadBtn');
 
-            const resultImg = document.getElementById('resultImg');
-            resultImg.src = `data:image/png;base64,${resultImageBase64}`;
+            // Check if result is video or image
+            if (result.video_mp4) {
+                // Video result
+                resultType = 'video';
+                resultVideoBase64 = result.video_mp4;
+                resultImageBase64 = null;
+
+                const resultVideo = document.getElementById('resultVideo');
+                resultVideo.src = `data:video/mp4;base64,${resultVideoBase64}`;
+
+                resultImageDiv.classList.add('hidden');
+                resultVideoDiv.classList.remove('hidden');
+                downloadBtn.textContent = 'Download MP4';
+            } else {
+                // Image result
+                resultType = 'image';
+                resultImageBase64 = result.storyboard_png;
+                resultVideoBase64 = null;
+
+                const resultImg = document.getElementById('resultImg');
+                resultImg.src = `data:image/png;base64,${resultImageBase64}`;
+
+                resultImageDiv.classList.remove('hidden');
+                resultVideoDiv.classList.add('hidden');
+                downloadBtn.textContent = 'Download PNG';
+            }
 
             document.getElementById('resultSection').classList.remove('hidden');
 
@@ -845,29 +880,51 @@ Expected ROI: 2 hours saved per crew per day
             });
         }
 
-        // Download image
-        function downloadImage() {
-            if (!resultImageBase64) return;
-
+        // Download result (image or video)
+        function downloadResult() {
             const link = document.createElement('a');
-            link.href = `data:image/png;base64,${resultImageBase64}`;
-            link.download = `storyboard-${Date.now()}.png`;
+
+            if (resultType === 'video' && resultVideoBase64) {
+                link.href = `data:video/mp4;base64,${resultVideoBase64}`;
+                link.download = `storyboard-${Date.now()}.mp4`;
+            } else if (resultImageBase64) {
+                link.href = `data:image/png;base64,${resultImageBase64}`;
+                link.download = `storyboard-${Date.now()}.png`;
+            } else {
+                return;
+            }
+
             link.click();
+        }
+
+        // Legacy function for backward compatibility
+        function downloadImage() {
+            downloadResult();
         }
 
         // Open in new tab
         function openInNewTab() {
-            if (!resultImageBase64) return;
-
             const win = window.open();
-            win.document.write(`
-                <html>
-                <head><title>Storyboard</title></head>
-                <body style="margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f0f0f0;">
-                    <img src="data:image/png;base64,${resultImageBase64}" style="max-width: 100%; height: auto;">
-                </body>
-                </html>
-            `);
+
+            if (resultType === 'video' && resultVideoBase64) {
+                win.document.write(`
+                    <html>
+                    <head><title>Storyboard Video</title></head>
+                    <body style="margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #1a1a1a;">
+                        <video src="data:video/mp4;base64,${resultVideoBase64}" controls autoplay loop style="max-width: 100%; max-height: 100vh;"></video>
+                    </body>
+                    </html>
+                `);
+            } else if (resultImageBase64) {
+                win.document.write(`
+                    <html>
+                    <head><title>Storyboard</title></head>
+                    <body style="margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f0f0f0;">
+                        <img src="data:image/png;base64,${resultImageBase64}" style="max-width: 100%; height: auto;">
+                    </body>
+                    </html>
+                `);
+            }
         }
 
         // Show error

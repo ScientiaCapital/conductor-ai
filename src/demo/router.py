@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from src.tools.storyboard.unified_storyboard import UnifiedStoryboardTool
 from src.tools.storyboard.storage import get_storage
+from src.tools.video.video_generator import VideoGeneratorTool
 
 logger = logging.getLogger(__name__)
 
@@ -132,9 +133,9 @@ class GenerateRequest(BaseModel):
         "field_crew",
         description="Target audience persona",
     )
-    output_format: Literal["infographic", "storyboard"] = Field(
+    output_format: Literal["infographic", "storyboard", "video_horizontal", "video_vertical"] = Field(
         "infographic",
-        description="Output format: 'infographic' (horizontal 16:9) or 'storyboard' (vertical 9:16)",
+        description="Output format: 'infographic' (16:9 PNG), 'storyboard' (9:16 PNG), 'video_horizontal' (16:9 MP4), 'video_vertical' (9:16 MP4)",
     )
     visual_style: Literal["clean", "polished", "photo_realistic", "minimalist"] = Field(
         "polished",
@@ -152,6 +153,9 @@ class GenerateResponse(BaseModel):
     success: bool
     storyboard_png: str | None = Field(
         None, description="Base64-encoded PNG storyboard"
+    )
+    video_mp4: str | None = Field(
+        None, description="Base64-encoded MP4 video (for video output formats)"
     )
     understanding: dict[str, Any] | None = Field(
         None, description="Extracted business insights"
@@ -215,6 +219,56 @@ def read_file_content(relative_path: str) -> str:
 
     with open(file_path) as f:
         return f.read()
+
+
+def build_video_prompt_from_understanding(understanding: dict[str, Any], audience: str) -> str:
+    """
+    Build a video generation prompt from storyboard understanding insights.
+
+    Args:
+        understanding: Extracted insights from understand_* methods
+        audience: Target audience persona
+
+    Returns:
+        Text prompt suitable for video generation
+    """
+    # Extract key elements from understanding
+    headline = understanding.get("headline", "Product Feature")
+    description = understanding.get("description", "")
+    value_proposition = understanding.get("value_proposition", "")
+    problem_solved = understanding.get("problem_solved", "")
+
+    # Audience-specific video style
+    audience_styles = {
+        "business_owner": "warm, relatable small business setting with soft natural lighting",
+        "c_suite": "sleek modern boardroom with professional cinematic lighting",
+        "btl_champion": "busy office environment with realistic workplace footage",
+        "top_tier_vc": "high-end tech startup aesthetic with dramatic lighting",
+        "field_crew": "outdoor work site or truck fleet with practical, documentary style",
+    }
+
+    style = audience_styles.get(audience, "professional office setting")
+
+    # Build the prompt
+    prompt_parts = [
+        f"Create a 5-second professional product demo video for: {headline}.",
+        f"Visual style: {style}.",
+    ]
+
+    if description:
+        prompt_parts.append(f"Show: {description[:200]}")
+
+    if value_proposition:
+        prompt_parts.append(f"Emphasize value: {value_proposition[:150]}")
+
+    # Add motion guidance
+    prompt_parts.extend([
+        "Camera: slow smooth push-in or gentle pan.",
+        "Mood: confident, modern, trustworthy.",
+        "No text overlays - pure visual storytelling.",
+    ])
+
+    return " ".join(prompt_parts)
 
 
 # ============================================================================
@@ -357,14 +411,24 @@ async def generate_storyboard(request: GenerateRequest) -> GenerateResponse:
             )
         input_value = request.code
 
-    # Run UnifiedStoryboardTool
+    # Check if video output is requested
+    is_video_output = request.output_format.startswith("video_")
+
+    # For video output, we need to:
+    # 1. First run UnifiedStoryboardTool to get understanding (insights)
+    # 2. Then use those insights to generate video
+
+    # Map video format to image format for understanding extraction
+    image_format = "infographic" if request.output_format == "video_horizontal" else "storyboard"
+
+    # Run UnifiedStoryboardTool (for understanding extraction, or full generation if image)
     tool = UnifiedStoryboardTool()
     tool_args = {
         "input": input_value,
         "icp_preset": request.icp_preset,
         "stage": request.stage,
         "audience": request.audience,
-        "output_format": request.output_format,
+        "output_format": image_format if is_video_output else request.output_format,
         "visual_style": request.visual_style,
         "open_browser": False,  # Server-side - don't open browser
     }
@@ -375,47 +439,7 @@ async def generate_storyboard(request: GenerateRequest) -> GenerateResponse:
 
     result = await tool.run(tool_args)
 
-    if result.success:
-        storyboard_png = result.result.get("storyboard_png")
-        understanding = result.result.get("understanding")
-        storage_url = None
-
-        # Auto-save to Supabase storage
-        if storyboard_png:
-            try:
-                storage = get_storage()
-                png_bytes = base64.b64decode(storyboard_png)
-                storage_result = await storage.save_storyboard(
-                    png_bytes=png_bytes,
-                    audience=request.audience,
-                    stage=request.stage,
-                    input_type=result.result.get("input_type", input_type),
-                    headline=understanding.get("headline") if understanding else None,
-                    understanding=understanding,
-                )
-                if storage_result:
-                    storage_url = storage_result.get("public_url")
-                    logger.info(f"Storyboard saved to storage: {storage_url}")
-            except Exception as e:
-                logger.warning(f"Failed to save storyboard to storage: {e}")
-                # Continue without storage - don't fail the request
-
-        return GenerateResponse(
-            success=True,
-            storyboard_png=storyboard_png,
-            understanding=understanding,
-            storage_url=storage_url,
-            input_type=result.result.get("input_type", input_type),
-            output_format=request.output_format,
-            visual_style=request.visual_style,
-            artist_style=request.artist_style,
-            image_count=image_count,
-            stage=request.stage,
-            audience=request.audience,
-            icp_preset=request.icp_preset,
-            execution_time_ms=result.execution_time_ms,
-        )
-    else:
+    if not result.success:
         return GenerateResponse(
             success=False,
             input_type=input_type,
@@ -429,3 +453,140 @@ async def generate_storyboard(request: GenerateRequest) -> GenerateResponse:
             execution_time_ms=result.execution_time_ms,
             error=result.error,
         )
+
+    understanding = result.result.get("understanding")
+    total_execution_time = result.execution_time_ms
+
+    # VIDEO OUTPUT: Generate video using VideoGeneratorTool
+    if is_video_output:
+        try:
+            # Build video prompt from understanding
+            video_prompt = build_video_prompt_from_understanding(
+                understanding or {},
+                request.audience,
+            )
+
+            # Determine aspect ratio
+            aspect_ratio = "16:9" if request.output_format == "video_horizontal" else "9:16"
+
+            # Call VideoGeneratorTool
+            video_tool = VideoGeneratorTool()
+            video_result = await video_tool.run({
+                "prompt": video_prompt,
+                "provider": "replicate",  # Default to Replicate (uses Luma Ray Flash)
+                "duration_seconds": 5,
+                "aspect_ratio": aspect_ratio,
+                "style": "professional",
+            })
+
+            total_execution_time += video_result.execution_time_ms
+
+            if video_result.success:
+                # Get video URL from result and fetch as base64
+                video_url = video_result.result.get("video_url")
+                if video_url:
+                    # For now, return the video URL - client can fetch it
+                    # TODO: Fetch video and encode as base64 for inline playback
+                    logger.info(f"Video generated: {video_url}")
+
+                    return GenerateResponse(
+                        success=True,
+                        video_mp4=video_url,  # Return URL for now (base64 would be huge)
+                        understanding=understanding,
+                        input_type=result.result.get("input_type", input_type),
+                        output_format=request.output_format,
+                        visual_style=request.visual_style,
+                        artist_style=request.artist_style,
+                        image_count=image_count,
+                        stage=request.stage,
+                        audience=request.audience,
+                        icp_preset=request.icp_preset,
+                        execution_time_ms=total_execution_time,
+                    )
+                else:
+                    return GenerateResponse(
+                        success=False,
+                        understanding=understanding,
+                        input_type=input_type,
+                        output_format=request.output_format,
+                        visual_style=request.visual_style,
+                        artist_style=request.artist_style,
+                        image_count=image_count,
+                        stage=request.stage,
+                        audience=request.audience,
+                        icp_preset=request.icp_preset,
+                        execution_time_ms=total_execution_time,
+                        error="Video generation returned no URL",
+                    )
+            else:
+                return GenerateResponse(
+                    success=False,
+                    understanding=understanding,
+                    input_type=input_type,
+                    output_format=request.output_format,
+                    visual_style=request.visual_style,
+                    artist_style=request.artist_style,
+                    image_count=image_count,
+                    stage=request.stage,
+                    audience=request.audience,
+                    icp_preset=request.icp_preset,
+                    execution_time_ms=total_execution_time,
+                    error=video_result.error or "Video generation failed",
+                )
+
+        except Exception as e:
+            logger.error(f"Video generation error: {e}")
+            return GenerateResponse(
+                success=False,
+                understanding=understanding,
+                input_type=input_type,
+                output_format=request.output_format,
+                visual_style=request.visual_style,
+                artist_style=request.artist_style,
+                image_count=image_count,
+                stage=request.stage,
+                audience=request.audience,
+                icp_preset=request.icp_preset,
+                execution_time_ms=total_execution_time,
+                error=f"Video generation error: {str(e)}",
+            )
+
+    # IMAGE OUTPUT: Return PNG storyboard
+    storyboard_png = result.result.get("storyboard_png")
+    storage_url = None
+
+    # Auto-save to Supabase storage
+    if storyboard_png:
+        try:
+            storage = get_storage()
+            png_bytes = base64.b64decode(storyboard_png)
+            storage_result = await storage.save_storyboard(
+                png_bytes=png_bytes,
+                audience=request.audience,
+                stage=request.stage,
+                input_type=result.result.get("input_type", input_type),
+                headline=understanding.get("headline") if understanding else None,
+                understanding=understanding,
+            )
+            if storage_result:
+                storage_url = storage_result.get("public_url")
+                logger.info(f"Storyboard saved to storage: {storage_url}")
+        except Exception as e:
+            logger.warning(f"Failed to save storyboard to storage: {e}")
+            # Continue without storage - don't fail the request
+
+    return GenerateResponse(
+        success=True,
+        storyboard_png=storyboard_png,
+        understanding=understanding,
+        storage_url=storage_url,
+        input_type=result.result.get("input_type", input_type),
+        output_format=request.output_format,
+        visual_style=request.visual_style,
+        artist_style=request.artist_style,
+        image_count=image_count,
+        stage=request.stage,
+        audience=request.audience,
+        icp_preset=request.icp_preset,
+        execution_time_ms=total_execution_time,
+    )
