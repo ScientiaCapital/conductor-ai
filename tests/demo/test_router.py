@@ -140,8 +140,7 @@ def test_get_example_code_all_examples_readable(client):
 # ============================================================================
 
 
-@pytest.mark.asyncio
-async def test_generate_rejects_empty_code(client):
+def test_generate_rejects_empty_code(client):
     """Test POST /demo/generate rejects empty code input."""
     response = client.post(
         "/demo/generate",
@@ -158,8 +157,7 @@ async def test_generate_rejects_empty_code(client):
     assert "empty" in response.json()["detail"].lower()
 
 
-@pytest.mark.asyncio
-async def test_generate_rejects_empty_image(client):
+def test_generate_rejects_empty_image(client):
     """Test POST /demo/generate rejects empty image input."""
     response = client.post(
         "/demo/generate",
@@ -175,8 +173,7 @@ async def test_generate_rejects_empty_image(client):
     assert "detail" in response.json()
 
 
-@pytest.mark.asyncio
-async def test_generate_rejects_whitespace_only(client):
+def test_generate_rejects_whitespace_only(client):
     """Test POST /demo/generate rejects whitespace-only input."""
     response = client.post(
         "/demo/generate",
@@ -192,8 +189,7 @@ async def test_generate_rejects_whitespace_only(client):
     assert "empty" in response.json()["detail"].lower()
 
 
-@pytest.mark.asyncio
-async def test_generate_requires_image_when_type_image(client):
+def test_generate_requires_image_when_type_image(client):
     """Test POST /demo/generate requires image_base64 when input_type='image'."""
     response = client.post(
         "/demo/generate",
@@ -209,8 +205,7 @@ async def test_generate_requires_image_when_type_image(client):
     assert "image_base64" in response.json()["detail"]
 
 
-@pytest.mark.asyncio
-async def test_generate_requires_code_when_type_code(client):
+def test_generate_requires_code_when_type_code(client):
     """Test POST /demo/generate requires code when input_type='code'."""
     response = client.post(
         "/demo/generate",
@@ -226,8 +221,7 @@ async def test_generate_requires_code_when_type_code(client):
     assert "code" in response.json()["detail"]
 
 
-@pytest.mark.asyncio
-async def test_generate_validates_input_type(client):
+def test_generate_validates_input_type(client):
     """Test POST /demo/generate validates input_type enum."""
     response = client.post(
         "/demo/generate",
@@ -243,8 +237,7 @@ async def test_generate_validates_input_type(client):
     assert response.status_code == 422
 
 
-@pytest.mark.asyncio
-async def test_generate_with_code_mocked(client):
+def test_generate_with_code_mocked(client):
     """Test POST /demo/generate with code input (mocked tool)."""
     mock_result = ToolResult(
         tool_name="unified_storyboard",
@@ -291,8 +284,7 @@ async def test_generate_with_code_mocked(client):
         assert data["audience"] == "c_suite"
 
 
-@pytest.mark.asyncio
-async def test_generate_handles_tool_failure(client):
+def test_generate_handles_tool_failure(client):
     """Test POST /demo/generate handles tool failure gracefully."""
     mock_result = ToolResult(
         tool_name="unified_storyboard",
@@ -325,8 +317,7 @@ async def test_generate_handles_tool_failure(client):
         assert data["storyboard_png"] is None
 
 
-@pytest.mark.asyncio
-async def test_generate_passes_open_browser_false(client):
+def test_generate_passes_open_browser_false(client):
     """Test POST /demo/generate sets open_browser=False."""
     with patch("src.demo.router.UnifiedStoryboardTool") as MockTool:
         mock_instance = AsyncMock()
