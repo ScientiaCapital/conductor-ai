@@ -1245,35 +1245,92 @@ DESIGN PRINCIPLES:
         - EASE: How much simpler their life becomes
         """
         value_angles = {
-            "business_owner": """VALUE FRAMING: COI (Cost of Inaction)
-Frame value as what they LOSE by not having this:
-- Lost revenue, wasted time, missed opportunities
-- Pain they continue to suffer without it
-- "Every day without this costs you..."
+            "business_owner": """VALUE FRAMING: COI (Cost of Inaction) - AMPLIFIED
+
+SPEAK TO THE FOUNDER'S WEIGHT:
+- What are they BLEEDING every day they don't act?
+- Cash walking out the door, jobs going sideways
+- Sleepless nights wondering what fell through the cracks
+- "Your competitors already figured this out"
+
+VOCABULARY THAT HITS:
+- "bleeding money", "my guys", "cash flow", "keeping the lights on"
+- "I built this", "sleepless nights", "finally get control"
+- "make payroll", "skin in the game"
+
+FORBIDDEN (sounds corporate, not founder):
+- "stakeholders", "enterprise solution", "synergize", "leverage"
+
+EMOTIONAL CORE: Loss aversion. Fear of missing out. Founder anxiety meets pragmatic hope.
 """,
-            "c_suite": """VALUE FRAMING: ROI (Return on Investment)
-Frame value as what they GAIN from this:
-- Measurable returns: dollars saved, hours reclaimed, % improvement
-- Competitive advantage, scalability, data insights
-- "This delivers X return on Y investment"
+            "c_suite": """VALUE FRAMING: ROI (Return on Investment) - AMPLIFIED
+
+SPEAK BOARDROOM LANGUAGE:
+- Every word must earn its place. Numbers speak louder than adjectives.
+- X invested → Y returned. Payback in Z months.
+- Show the math they can take to the board.
+
+VOCABULARY THAT RESONATES:
+- "margin improvement", "operational leverage", "unit economics"
+- "payback period", "scale efficiently", "competitive moat"
+- "data-driven", "visibility", "reduce overhead"
+
+FORBIDDEN (sounds like marketing fluff):
+- "game-changing", "revolutionary", "best-in-class", "paradigm shift"
+
+EMOTIONAL CORE: Validation through data. Strategic advantage. Looking smart to the board.
 """,
-            "btl_champion": """VALUE FRAMING: COI (Cost of Inaction)
-Frame value as risk/pain of NOT having this:
-- How it makes them look bad to leadership
-- Daily frustrations that continue without it
-- "Without this, you'll keep dealing with..."
+            "btl_champion": """VALUE FRAMING: COI (Cost of Inaction) - AMPLIFIED
+
+HELP THEM SELL IT UP:
+- Your boss will ask why you didn't bring this up sooner
+- Every fire you're fighting today? There's a tool that prevents it
+- Be the hero who fixed the coordination problem
+
+VOCABULARY THAT RESONATES:
+- "fires to put out", "chasing updates", "my boss"
+- "look good", "prove it works", "the team will actually use this"
+- "less headaches", "one less thing", "finally under control"
+
+FORBIDDEN (sounds like enterprise sales):
+- "enterprise-grade", "holistic solution", "comprehensive platform"
+
+EMOTIONAL CORE: Career risk of missing this. Internal advocate energy. Daily grind empathy.
 """,
-            "top_tier_vc": """VALUE FRAMING: ROI (Return on Investment)
-Frame value as investment opportunity:
-- Market size, growth potential, defensible moat
-- Traction metrics, expansion potential
-- "This represents X opportunity with Y traction"
+            "top_tier_vc": """VALUE FRAMING: ROI (Return on Investment) - AMPLIFIED
+
+PATTERN-MATCHING INVESTOR BRAIN:
+- Show the moat. Prove the momentum. No fluff.
+- Market timing, founder-market fit, category creation potential
+- Unit economics that actually work
+
+VOCABULARY THAT RESONATES:
+- "defensible moat", "network effects", "land and expand"
+- "negative churn", "CAC payback", "LTV/CAC ratio"
+- "gross margin", "market timing", "founder-market fit"
+
+FORBIDDEN (every pitch deck says this):
+- "disruptive", "revolutionary", "game-changing", "Uber for X"
+
+EMOTIONAL CORE: Fear of missing the next big thing. Pattern recognition. Return potential.
 """,
-            "field_crew": """VALUE FRAMING: EASE (Simplicity)
-Frame value as making their job EASIER:
-- Less paperwork, faster completion, get home on time
-- Simple, practical benefits they'll actually use
-- "This means less hassle and faster work"
+            "field_crew": """VALUE FRAMING: EASE (Simplicity) - AMPLIFIED
+
+BUDDY ON THE JOBSITE:
+- No corporate BS. Just show me it works.
+- Less hassle. Less paperwork. Get home on time.
+- One tap. Done. Works even offline.
+
+VOCABULARY THAT RESONATES:
+- "get it done", "no BS", "works offline", "one tap"
+- "no training needed", "my truck", "the job"
+- "clock out on time", "just works"
+
+FORBIDDEN (sounds like office people):
+- "optimize", "leverage", "utilize", "streamline"
+- "stakeholder", "implementation", "enterprise", "scalable"
+
+EMOTIONAL CORE: Make my day easier. Don't make me look stupid. Let me get home on time.
 """,
         }
         return value_angles.get(audience, value_angles["c_suite"])
@@ -1321,58 +1378,77 @@ Frame value as making their job EASIER:
         hooks = persona.get("hooks", [])
         title = persona.get("title", audience)
         tone = persona.get("tone", "Professional")
+        voice_tone = persona.get("voice_tone", "")
+        vocabulary = persona.get("vocabulary", [])
+        forbidden = persona.get("forbidden_phrases", [])
+        default_style = persona.get("default_visual_style", "polished")
 
         # Field Crew: Special handling with simplified design
         if audience == "field_crew":
             style = persona.get("infographic_style", {})
             return f"""AUDIENCE: {title}
+VOICE: {voice_tone}
 THEY CARE ABOUT: {', '.join(cares_about)}
 VALUE ANGLE: EASE - make their job easier, no ROI/savings talk
+VISUAL STYLE: {default_style} (hand-drawn, approachable, no corporate feel)
 DESIGN APPROACH: {style.get('design', 'Simple icons, big text, minimal words')}
 LANGUAGE RULES:
-- {chr(10).join('- ' + r for r in style.get('language_rules', ['Use 5th grade vocabulary'])[:3])}
-FRAMING: {value_framing}
-TONE: {tone}"""
+{chr(10).join('- ' + r for r in style.get('language_rules', ['Use 5th grade vocabulary'])[:3])}
+USE THESE WORDS: {', '.join(vocabulary[:5])}
+NEVER USE: {', '.join(forbidden[:5])}
+FRAMING: {value_framing}"""
 
         # C-Suite: Numbers and data focus
         if audience == "c_suite":
             return f"""AUDIENCE: {title}
+VOICE: {voice_tone}
 THEY CARE ABOUT: {', '.join(cares_about)}
 VALUE ANGLE: ROI - show the math, the metrics, the return
-DESIGN APPROACH: Clean data visualization, numbers prominent, executive summary feel
+VISUAL STYLE: {default_style} (charts, graphs, numbers prominent)
+DESIGN APPROACH: Clean data visualization, McKinsey/BCG aesthetic, executive summary
+USE THESE WORDS: {', '.join(vocabulary[:5])}
+NEVER USE: {', '.join(forbidden[:5])}
 FRAMING: {value_framing}
-HOOKS THAT RESONATE: {'; '.join(hooks[:2])}
-TONE: {tone}"""
+HOOKS THAT RESONATE: {'; '.join(hooks[:2])}"""
 
         # Business Owner: Emotional, pain→solution
         if audience == "business_owner":
             return f"""AUDIENCE: {title}
+VOICE: {voice_tone}
 THEY CARE ABOUT: {', '.join(cares_about)}
 VALUE ANGLE: COI (Cost of Inaction) - what they LOSE by not acting
-DESIGN APPROACH: Emotional hook, show the pain → solution story, relatable
+VISUAL STYLE: {default_style} (modern SaaS, Stripe/Linear quality)
+DESIGN APPROACH: Emotional hook, show the pain → solution story, relatable founder energy
+USE THESE WORDS: {', '.join(vocabulary[:5])}
+NEVER USE: {', '.join(forbidden[:5])}
 FRAMING: {value_framing}
-HOOKS THAT RESONATE: {'; '.join(hooks[:2])}
-TONE: {tone}"""
+HOOKS THAT RESONATE: {'; '.join(hooks[:2])}"""
 
         # BTL Champion: Day-in-life practical
         if audience == "btl_champion":
             return f"""AUDIENCE: {title}
+VOICE: {voice_tone}
 THEY CARE ABOUT: {', '.join(cares_about)}
 VALUE ANGLE: COI - career risk of missing this, look good to boss
-DESIGN APPROACH: Day-in-life scenarios, practical benefits, before/after
+VISUAL STYLE: {default_style} (professional infographic, shareable internally)
+DESIGN APPROACH: Day-in-life scenarios, practical benefits, before/after comparison
+USE THESE WORDS: {', '.join(vocabulary[:5])}
+NEVER USE: {', '.join(forbidden[:5])}
 FRAMING: {value_framing}
-HOOKS THAT RESONATE: {'; '.join(hooks[:2])}
-TONE: {tone}"""
+HOOKS THAT RESONATE: {'; '.join(hooks[:2])}"""
 
         # VC/Investor: Investment thesis
         if audience == "top_tier_vc":
             return f"""AUDIENCE: {title}
+VOICE: {voice_tone}
 THEY CARE ABOUT: {', '.join(cares_about)}
 VALUE ANGLE: ROI - market opportunity, defensibility, return profile
-DESIGN APPROACH: Investment thesis format, market/traction/moat sections
+VISUAL STYLE: {default_style} (bold, memorable pitch deck slide)
+DESIGN APPROACH: Investment thesis format, show the moat, prove the momentum
+USE THESE WORDS: {', '.join(vocabulary[:5])}
+NEVER USE: {', '.join(forbidden[:5])}
 FRAMING: {value_framing}
-AVOID: Book a demo, contact sales, free trial, marketing buzzwords
-TONE: {tone}"""
+AVOID: Book a demo, contact sales, free trial, marketing buzzwords"""
 
         # Default fallback
         return f"""AUDIENCE: {title}
@@ -1440,6 +1516,34 @@ TONE: {tone}"""
 - Only essential text and icons
 - Single accent color usage
 - Think: Japanese design or Dieter Rams""",
+            # NEW STYLES FOR PERSONA RESONANCE
+            "isometric": """VISUAL STYLE: ISOMETRIC 3D
+- Clean 3D isometric icons and illustrations
+- Soft shadows, subtle depth
+- Modern SaaS aesthetic (Stripe, Linear, Notion)
+- Precise geometric shapes
+- Light, airy backgrounds with floating elements
+- Think: Stripe's marketing illustrations""",
+            "sketch": """VISUAL STYLE: HAND-DRAWN SKETCH
+- Whiteboard/napkin sketch aesthetic
+- Imperfect, hand-drawn lines
+- Marker or pencil texture
+- Casual, approachable feel
+- Doodle-style icons
+- Think: Quick sketch explaining an idea to a coworker""",
+            "data_viz": """VISUAL STYLE: DATA VISUALIZATION
+- Charts, graphs, and numbers prominent
+- McKinsey/BCG consulting deck aesthetic
+- Clean data tables and metrics
+- Waterfall charts, bar graphs, trend lines
+- Numbers are heroes, not supporting cast
+- Think: Board presentation with hard data""",
+            "bold": """VISUAL STYLE: BOLD GEOMETRIC
+- Bauhaus-inspired strong shapes
+- High contrast, vibrant colors
+- Geometric patterns and forms
+- Memorable, stand-out aesthetic
+- Think: Pitch deck slide that demands attention""",
         }
         return styles.get(visual_style, styles["polished"])
 
@@ -1491,6 +1595,15 @@ TONE: {tone}"""
 - Strong black outlines
 - Analytical cubism meets business graphics
 - Think: Three Musicians meets corporate storyboard""",
+            # NEW ARTIST STYLE
+            "giger": """ARTIST STYLE: H.R. GIGER (BIOMECHANICAL)
+- Dark, intricate biomechanical aesthetic
+- Organic forms merged with mechanical elements
+- Alien/xenomorph design language
+- Textured, layered surfaces
+- Haunting, otherworldly atmosphere
+- Bold choice for disruption/transformation messaging
+- Think: Alien movie meets tech transformation story""",
         }
         return artists.get(artist_style, "")
 

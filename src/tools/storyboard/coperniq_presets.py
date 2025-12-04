@@ -129,6 +129,29 @@ COPERNIQ_ICP = {
                 "Your competition is already using this",
                 "What if you could leave the office at 5pm?",
             ],
+            # PERSONA POLISH - Voice & Style
+            "voice_tone": "Founder anxiety meets pragmatic hope. Speak to the weight on their shoulders.",
+            "vocabulary": [
+                "bleeding money",
+                "my guys",
+                "cash flow",
+                "keeping the lights on",
+                "I built this",
+                "sleepless nights",
+                "finally get control",
+                "my baby",
+                "skin in the game",
+                "make payroll",
+            ],
+            "forbidden_phrases": [
+                "stakeholders",
+                "enterprise solution",
+                "synergize",
+                "leverage",
+                "robust platform",
+                "digital transformation",
+            ],
+            "default_visual_style": "isometric",  # Modern SaaS feel, Stripe/Linear quality
         },
         AudiencePersona.C_SUITE: {
             "title": "CEO / CFO / COO",
@@ -142,6 +165,29 @@ COPERNIQ_ICP = {
                 "Make decisions based on real data, not gut feelings",
                 "Scale without adding overhead",
             ],
+            # PERSONA POLISH - Voice & Style
+            "voice_tone": "Boardroom brevity. Every word earns its place. Numbers speak louder than adjectives.",
+            "vocabulary": [
+                "margin improvement",
+                "operational leverage",
+                "unit economics",
+                "payback period",
+                "scale efficiently",
+                "competitive moat",
+                "data-driven",
+                "visibility",
+                "reduce overhead",
+                "strategic advantage",
+            ],
+            "forbidden_phrases": [
+                "game-changing",
+                "revolutionary",
+                "best-in-class",
+                "cutting-edge",
+                "paradigm shift",
+                "synergy",
+            ],
+            "default_visual_style": "data_viz",  # McKinsey deck style, numbers prominent
         },
         AudiencePersona.BTL_CHAMPION: {
             "title": "Project Manager / Operations Manager",
@@ -155,6 +201,29 @@ COPERNIQ_ICP = {
                 "No more chasing down updates",
                 "Be the hero who fixed the coordination problem",
             ],
+            # PERSONA POLISH - Voice & Style
+            "voice_tone": "Internal advocate energy. Help them sell it up. Speak to the daily grind.",
+            "vocabulary": [
+                "fires to put out",
+                "chasing updates",
+                "my boss",
+                "look good",
+                "prove it works",
+                "the team will actually use this",
+                "less headaches",
+                "one less thing",
+                "finally under control",
+                "save my sanity",
+            ],
+            "forbidden_phrases": [
+                "enterprise-grade",
+                "holistic solution",
+                "comprehensive platform",
+                "end-to-end",
+                "industry-leading",
+                "world-class",
+            ],
+            "default_visual_style": "clean",  # Professional infographic, shareable internally
         },
         AudiencePersona.TOP_TIER_VC: {
             "title": "Investor / VC / Angel",
@@ -180,6 +249,29 @@ COPERNIQ_ICP = {
                 "game-changing",
                 "best-in-class",
             ],
+            # PERSONA POLISH - Voice & Style
+            "voice_tone": "Pattern-matching investor brain. Show the moat. Prove the momentum. No fluff.",
+            "vocabulary": [
+                "defensible moat",
+                "network effects",
+                "land and expand",
+                "negative churn",
+                "CAC payback",
+                "LTV/CAC ratio",
+                "gross margin",
+                "market timing",
+                "founder-market fit",
+                "category creation",
+            ],
+            "forbidden_phrases": [
+                "disruptive",
+                "revolutionary",
+                "game-changing",
+                "Uber for X",
+                "best-in-class",
+                "world-class team",
+            ],
+            "default_visual_style": "bold",  # Bauhaus-inspired, memorable pitch deck slide
         },
         AudiencePersona.FIELD_CREW: {
             "title": "Field Crew / Technicians / Blue Collar Workers",
@@ -216,6 +308,33 @@ COPERNIQ_ICP = {
                     "real-time": "instant, like a text message",
                 },
             },
+            # PERSONA POLISH - Voice & Style
+            "voice_tone": "Buddy on the jobsite. No corporate BS. Just show me it works.",
+            "vocabulary": [
+                "get it done",
+                "no BS",
+                "works offline",
+                "one tap",
+                "no training needed",
+                "my truck",
+                "the job",
+                "clock out on time",
+                "less paperwork",
+                "just works",
+            ],
+            "forbidden_phrases": [
+                "optimize",
+                "leverage",
+                "utilize",
+                "streamline",
+                "enhance",
+                "stakeholder",
+                "implementation",
+                "enterprise",
+                "scalable",
+                "robust",
+            ],
+            "default_visual_style": "sketch",  # Hand-drawn whiteboard feel, approachable
         },
     },
     "language_style": {
