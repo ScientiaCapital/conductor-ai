@@ -671,10 +671,29 @@ def calculate_roi(revenue: float, costs: float) -> float:
                 }
 
                 const result = await response.json();
+
+                // Check if API returned success: false
+                if (result.success === false) {
+                    throw new Error(result.error || 'Storyboard generation failed');
+                }
+
                 displayResult(result);
 
             } catch (error) {
-                showError(`Generation failed: ${error.message}`);
+                // Handle different error formats
+                let errorMsg = 'Unknown error';
+                if (error instanceof Error) {
+                    errorMsg = error.message;
+                } else if (typeof error === 'string') {
+                    errorMsg = error;
+                } else if (error && error.detail) {
+                    errorMsg = error.detail;
+                } else if (error && error.error) {
+                    errorMsg = error.error;
+                } else {
+                    errorMsg = JSON.stringify(error);
+                }
+                showError(`Generation failed: ${errorMsg}`);
             } finally {
                 document.getElementById('loadingSection').classList.add('hidden');
                 document.getElementById('generateBtn').disabled = false;
