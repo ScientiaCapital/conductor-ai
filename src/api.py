@@ -25,6 +25,7 @@ from src.agents.schemas import (
     SessionStatus,
 )
 from src.agents.state import StateManager
+from src.demo.router import router as demo_router
 from src.storyboard.router import router as storyboard_router
 from src.tools.base import ToolCategory
 from src.tools.registry import ToolRegistry
@@ -42,6 +43,7 @@ app = FastAPI(
 
 # Include routers
 app.include_router(storyboard_router)
+app.include_router(demo_router)
 
 
 # ============================================================================
