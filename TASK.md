@@ -16,6 +16,7 @@
 - ✅ Storyboard prompts enriched with knowledge (banned/approved terms, pain points)
 - ✅ 58 knowledge tests passing
 - ✅ Pre-seeded 22 banned terms + 14 approved terms (loaded from Supabase)
+- ✅ **VC storyboard polish** - removed rigid template, enabled creative freedom for GTM/LinkedIn
 
 **Total Tests**: 727 (59 SDK + 204 core + 186 video + 202 storyboard + 58 knowledge + 18 demo)
 
@@ -34,9 +35,13 @@
 ### 🟡 MEDIUM Priority
 
 **Ingest Real Data** - Knowledge Brain is connected but needs actual content:
+- **Loom transcripts** (~20-25 videos, manual export → batch ingest)
 - Close CRM calls/notes (pain points, metrics, quotes)
-- Loom transcripts (feature mentions, use cases)
 - Miro screenshots (roadmap features)
+
+**Series A Prep** (Target: May/June 2025)
+- Test storyboard generation with real knowledge data
+- CEO/CTO review of investor-focused outputs
 
 ---
 

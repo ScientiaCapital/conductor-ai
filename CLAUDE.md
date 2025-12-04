@@ -88,6 +88,7 @@ INGEST → EXTRACT (LLM) → STORE (Supabase)
 - **SQL Migrations**: All 4 migrations (001-004) completed in Supabase
 - **Prompt Enrichment**: Language guidelines + knowledge context injected into understand methods
 - **Graceful Degradation**: Storyboards work even if knowledge cache fails to load
+- **VC Storyboard Polish**: Removed rigid 6-section template, enabled creative freedom for GTM/LinkedIn
 - **Tests**: 15 new cache tests, 58 total knowledge tests, 727 total project tests
 
 ### Key Architectural Patterns
@@ -114,6 +115,13 @@ except Exception:
 ```
 Input → [FULL EXTRACTION] → Specific understanding → [MARKETING TRANSFORM] → External-ready
 ```
+
+**Guidance Over Templates** (Storyboard Prompts)
+```
+❌ RIGID: "1. THE PROBLEM: {x} 2. THE SOLUTION: {y} 3. MARKET: $200B TAM..."
+✅ FLEXIBLE: "INVESTOR MINDSET: What's defensible? Show traction. CREATIVE FREEDOM: Design however best tells this story."
+```
+Give the model guardrails (forbidden words, tone) but let it choose structure and layout.
 
 ## Completed Phases
 
