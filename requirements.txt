@@ -7,6 +7,3 @@ httpx>=0.25.0
 
 # Gemini for storyboard generation
 google-genai>=1.0.0
-
-# Supabase for knowledge cache + storage
-supabase>=2.0.0

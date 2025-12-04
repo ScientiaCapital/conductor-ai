@@ -20,26 +20,12 @@ import base64
 import logging
 import httpx
 from typing import Any, Literal
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from pydantic import BaseModel, Field
 
-from src.tools.storyboard.storyboard_config import (
-    get_value_angle_instruction,
-    get_section_headers,
-    get_persona_extraction_focus,
-    get_visual_style_instructions,
-    get_artist_style_instructions,
-    get_format_layout_instructions,
-    get_format_output_instructions,
-)
-
 logger = logging.getLogger(__name__)
 
-
-# =============================================================================
-# JSON UTILITIES
-# =============================================================================
 
 def _repair_json(json_str: str) -> str:
     """
@@ -69,6 +55,7 @@ def _repair_json(json_str: str) -> str:
         pass
 
     # Fix unterminated strings by closing them
+    # Count quotes to see if we have an odd number (unterminated)
     quote_count = json_str.count('"') - json_str.count('\\"')
     if quote_count % 2 == 1:
         json_str = json_str + '"'
@@ -129,11 +116,10 @@ def _safe_parse_understanding(
         )
 
 
-# =============================================================================
-# TYPE DEFINITIONS
-# =============================================================================
-
+# Vision model options for understanding (images)
 VisionModel = Literal["gemini", "qwen"]
+
+# Text model options for understanding (code/transcripts)
 TextModel = Literal["gemini", "deepseek"]
 
 
@@ -142,8 +128,8 @@ class StoryboardUnderstanding(BaseModel):
 
     headline: str = Field(..., description="Catchy, benefit-focused headline (8 words max)")
     tagline: str = Field(
-        default="",
-        description="Dynamic tagline specific to content and persona (10 words max) - MUST be unique to this content"
+        default="One platform for contractors who do it all",
+        description="Dynamic tagline specific to content and persona (10 words max)"
     )
     what_it_does: str = Field(..., description="Plain English description (2 sentences max)")
     business_value: str = Field(..., description="Quantified benefit (hours saved, % improvement)")
@@ -151,6 +137,7 @@ class StoryboardUnderstanding(BaseModel):
     differentiator: str = Field(..., description="What makes this special (1 sentence)")
     pain_point_addressed: str = Field(..., description="The problem this solves")
     suggested_icon: str = Field(default="clipboard-check", description="Icon suggestion for visual")
+    # DEBUG/VERIFICATION fields - for CEO/CTO to verify extraction is correct
     raw_extracted_text: str = Field(
         default="",
         description="Verbatim text/features extracted from input (for debugging/verification)"
@@ -165,22 +152,27 @@ class StoryboardUnderstanding(BaseModel):
 class GeminiConfig:
     """Configuration for storyboard client."""
 
-    api_key: str | None = None
-    openrouter_api_key: str | None = None
+    api_key: str | None = None  # Google API key for Gemini
+    openrouter_api_key: str | None = None  # OpenRouter API key for Qwen/DeepSeek
 
-    # Model routing
-    vision_provider: VisionModel = "qwen"
-    text_provider: TextModel = "deepseek"
+    # ==========================================================================
+    # INTELLIGENT MODEL ROUTING
+    # ==========================================================================
+    # Stage 1 (EXTRACT): Primary models for initial extraction
+    vision_provider: VisionModel = "qwen"  # For images (default: qwen for better doc understanding)
+    text_provider: TextModel = "deepseek"  # For text/transcripts (default: deepseek for best reasoning)
 
-    # Refinement settings
-    enable_refinement: bool = True
-    refinement_threshold: float = 0.75
+    # Stage 2 (REFINE): Enable multi-model refinement for low-confidence extractions
+    enable_refinement: bool = True  # If True, low-confidence extractions get refined by alternate model
+    refinement_threshold: float = 0.75  # Confidence below this triggers refinement pass
 
     # Model identifiers
-    gemini_vision_model: str = "models/gemini-2.0-flash"
-    qwen_model: str = "qwen/qwen2.5-vl-72b-instruct"
-    deepseek_model: str = "deepseek/deepseek-chat"
-    image_model: str = "models/gemini-3-pro-image-preview"
+    gemini_vision_model: str = "models/gemini-2.0-flash"  # Gemini vision model (fallback)
+    qwen_model: str = "qwen/qwen2.5-vl-72b-instruct"  # Qwen 2.5 VL 72B - vision + doc understanding
+    deepseek_model: str = "deepseek/deepseek-chat"  # DeepSeek V3 - fast, excellent for structured extraction
+
+    # Stage 3 (GENERATE): Image generation (Gemini only - no alternatives)
+    image_model: str = "models/gemini-3-pro-image-preview"  # Nano Banana - FREE during preview
 
     timeout: int = 90
     max_retries: int = 3
@@ -192,10 +184,6 @@ class GeminiConfig:
             self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
 
 
-# =============================================================================
-# MAIN CLIENT
-# =============================================================================
-
 class GeminiStoryboardClient:
     """
     Client for Gemini Vision + Image Generation.
@@ -204,9 +192,36 @@ class GeminiStoryboardClient:
     1. EXTRACT - Primary model extracts (DeepSeek for text, Qwen for images)
     2. REFINE - If confidence < threshold, alternate model validates/improves
     3. GENERATE - Gemini creates the image (only model that can generate)
+
+    Model Routing Intelligence:
+    - DeepSeek R1-0528: Reasoning model, excels at structured extraction from text
+    - Qwen 2.5 VL 72B: Vision model, excels at OCR and visual understanding
+    - Gemini 3 Pro: Image generation (no alternatives available)
+
+    Example:
+        client = GeminiStoryboardClient()
+
+        # Stage 1 + 2: Extract → Refine (automatic model routing)
+        understanding = await client.understand_code(
+            code_content="def calculate_roi(): ...",
+            icp_preset=COPERNIQ_ICP,
+            audience="c_suite",
+        )
+
+        # Stage 3: Generate
+        png_bytes = await client.generate_storyboard(
+            understanding=understanding,
+            stage="preview",
+        )
     """
 
     def __init__(self, config: GeminiConfig | None = None):
+        """
+        Initialize Gemini client.
+
+        Args:
+            config: Optional GeminiConfig (uses env vars if not provided)
+        """
         self.config = config or GeminiConfig()
         self._client = None
         self._initialized = False
@@ -221,6 +236,7 @@ class GeminiStoryboardClient:
 
         try:
             from google import genai
+
             self._client = genai.Client(api_key=self.config.api_key)
             self._initialized = True
             logger.info("[GEMINI] Client initialized successfully")
@@ -230,16 +246,21 @@ class GeminiStoryboardClient:
                 "Install with: pip install google-genai"
             )
 
-    # =========================================================================
-    # PROVIDER CALLS
-    # =========================================================================
-
     async def _call_openrouter_with_retry(
         self,
         payload: dict,
         max_retries: int = 3,
     ) -> str:
-        """Call OpenRouter API with retry logic for rate limits."""
+        """
+        Call OpenRouter API with retry logic for rate limits.
+
+        Args:
+            payload: Request payload
+            max_retries: Number of retries on rate limit
+
+        Returns:
+            Model response text
+        """
         import asyncio
 
         if not self.config.openrouter_api_key:
@@ -262,7 +283,8 @@ class GeminiStoryboardClient:
                     )
 
                     if response.status_code == 429:
-                        wait_time = (attempt + 1) * 5
+                        # Rate limited - wait and retry
+                        wait_time = (attempt + 1) * 5  # 5s, 10s, 15s
                         logger.warning(f"[OPENROUTER] Rate limited, waiting {wait_time}s (attempt {attempt + 1}/{max_retries})")
                         await asyncio.sleep(wait_time)
                         continue
@@ -287,30 +309,55 @@ class GeminiStoryboardClient:
         image_data: bytes | None = None,
         images_data: list[bytes] | None = None,
     ) -> str:
-        """Call Qwen VL via OpenRouter for vision understanding."""
+        """
+        Call Qwen VL via OpenRouter for vision understanding.
+
+        Args:
+            prompt: Text prompt for the model
+            image_data: Single image bytes (optional)
+            images_data: Multiple image bytes (optional)
+
+        Returns:
+            Model response text
+        """
+        # Build message content
         content = []
 
+        # Add images if provided
         if images_data:
-            for img_bytes in images_data[:3]:
+            for img_bytes in images_data[:3]:  # Max 3 images
                 img_b64 = base64.b64encode(img_bytes).decode("utf-8")
                 content.append({
                     "type": "image_url",
-                    "image_url": {"url": f"data:image/png;base64,{img_b64}"}
+                    "image_url": {
+                        "url": f"data:image/png;base64,{img_b64}"
+                    }
                 })
         elif image_data:
             img_b64 = base64.b64encode(image_data).decode("utf-8")
             content.append({
                 "type": "image_url",
-                "image_url": {"url": f"data:image/png;base64,{img_b64}"}
+                "image_url": {
+                    "url": f"data:image/png;base64,{img_b64}"
+                }
             })
 
-        content.append({"type": "text", "text": prompt})
+        # Add text prompt
+        content.append({
+            "type": "text",
+            "text": prompt
+        })
 
         payload = {
             "model": self.config.qwen_model,
-            "messages": [{"role": "user", "content": content}],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": content
+                }
+            ],
             "max_tokens": 4096,
-            "temperature": 0.5,
+            "temperature": 0.5,  # Higher for creative extraction
         }
 
         logger.info(f"[QWEN] Calling {self.config.qwen_model} via OpenRouter")
@@ -318,59 +365,35 @@ class GeminiStoryboardClient:
         logger.info(f"[QWEN] Response received ({len(result)} chars)")
         return result
 
-    async def _call_deepseek(self, prompt: str) -> str:
-        """Call DeepSeek via OpenRouter for text understanding."""
+    async def _call_deepseek(
+        self,
+        prompt: str,
+    ) -> str:
+        """
+        Call DeepSeek R1 via OpenRouter for text understanding (code/transcripts).
+
+        Args:
+            prompt: Text prompt for the model
+
+        Returns:
+            Model response text
+        """
         payload = {
             "model": self.config.deepseek_model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
             "max_tokens": 4096,
-            "temperature": 0.5,
+            "temperature": 0.5,  # Higher for creative extraction
         }
 
         logger.info(f"[DEEPSEEK] Calling {self.config.deepseek_model} via OpenRouter")
         result = await self._call_openrouter_with_retry(payload)
         logger.info(f"[DEEPSEEK] Response received ({len(result)} chars)")
         return result
-
-    async def _call_gemini_text(self, prompt: str) -> str:
-        """Call Gemini for text understanding."""
-        self._ensure_client()
-        logger.info(f"[GEMINI] Calling {self.config.gemini_vision_model}")
-        response = self._client.models.generate_content(
-            model=self.config.gemini_vision_model,
-            contents=prompt,
-        )
-        return response.text
-
-    async def _call_gemini_vision(
-        self,
-        prompt: str,
-        image_data: bytes | None = None,
-        images_data: list[bytes] | None = None,
-    ) -> str:
-        """Call Gemini for vision understanding."""
-        self._ensure_client()
-        from google.genai import types
-
-        content_parts = []
-        if images_data:
-            for img_bytes in images_data:
-                content_parts.append(types.Part.from_bytes(data=img_bytes, mime_type="image/png"))
-        elif image_data:
-            content_parts.append(types.Part.from_bytes(data=image_data, mime_type="image/png"))
-
-        content_parts.append(prompt)
-
-        logger.info(f"[GEMINI] Calling {self.config.gemini_vision_model} for vision")
-        response = self._client.models.generate_content(
-            model=self.config.gemini_vision_model,
-            contents=content_parts,
-        )
-        return response.text
-
-    # =========================================================================
-    # REFINEMENT
-    # =========================================================================
 
     async def _refine_extraction(
         self,
@@ -381,15 +404,30 @@ class GeminiStoryboardClient:
     ) -> StoryboardUnderstanding:
         """
         Stage 2 (REFINE): Use alternate model to validate/improve low-confidence extraction.
+
+        Intelligent routing:
+        - If initial extraction used DeepSeek → refine with Qwen (adds vision/structure insight)
+        - If initial extraction used Qwen → refine with DeepSeek (adds reasoning depth)
+
+        Args:
+            initial: Initial extraction result
+            original_content: Original input (code or image description)
+            content_type: "text" or "image" to determine which alternate model to use
+            audience: Target audience for refinement context
+
+        Returns:
+            Refined StoryboardUnderstanding (or original if refinement disabled/unnecessary)
         """
+        # Skip refinement if disabled or confidence is high enough
         if not self.config.enable_refinement:
             return initial
         if initial.extraction_confidence >= self.config.refinement_threshold:
-            logger.info(f"[REFINE] Skipping - confidence {initial.extraction_confidence:.2f} >= threshold")
+            logger.info(f"[REFINE] Skipping - confidence {initial.extraction_confidence:.2f} >= threshold {self.config.refinement_threshold}")
             return initial
 
-        logger.info(f"[REFINE] Low confidence {initial.extraction_confidence:.2f} - triggering refinement")
+        logger.info(f"[REFINE] Low confidence {initial.extraction_confidence:.2f} - triggering refinement pass")
 
+        # Build refinement prompt with initial extraction context
         refinement_prompt = f"""You are refining an initial extraction that had low confidence ({initial.extraction_confidence:.2f}).
 
 INITIAL EXTRACTION (may be incomplete or inaccurate):
@@ -426,97 +464,36 @@ Return ONLY valid JSON matching this exact structure:
 }}"""
 
         try:
+            # Route to alternate model based on content type
             if content_type == "text":
-                response_text = await self._call_gemini_text(refinement_prompt)
+                # Text was initially processed by DeepSeek, refine with... DeepSeek again (no vision alt for text)
+                # Actually for text, we can try Gemini as alternate
+                self._ensure_client()
+                logger.info(f"[REFINE] Using Gemini as alternate for text refinement")
+                response = self._client.models.generate_content(
+                    model=self.config.gemini_vision_model,
+                    contents=refinement_prompt,
+                )
+                response_text = response.text
             else:
+                # Image was initially processed by Qwen, refine with DeepSeek for reasoning
+                logger.info(f"[REFINE] Using DeepSeek as alternate for image refinement (reasoning pass)")
                 response_text = await self._call_deepseek(refinement_prompt)
 
+            # Parse refined result
             refined = _safe_parse_understanding(response_text, source="refinement")
 
+            # Only use refinement if it actually improved confidence
             if refined.extraction_confidence > initial.extraction_confidence:
                 logger.info(f"[REFINE] Improved: {initial.extraction_confidence:.2f} → {refined.extraction_confidence:.2f}")
                 return refined
             else:
-                logger.info(f"[REFINE] No improvement, keeping initial")
+                logger.info(f"[REFINE] No improvement ({refined.extraction_confidence:.2f}), keeping initial")
                 return initial
 
         except Exception as e:
             logger.warning(f"[REFINE] Refinement failed ({e}), keeping initial extraction")
             return initial
-
-    # =========================================================================
-    # UNDERSTANDING METHODS
-    # =========================================================================
-
-    async def _understand_content(
-        self,
-        prompt: str,
-        content_type: Literal["text", "image"],
-        audience: str,
-        original_content: str,
-        source_name: str,
-        image_data: bytes | None = None,
-        images_data: list[bytes] | None = None,
-    ) -> StoryboardUnderstanding:
-        """
-        Common understanding logic for all content types.
-
-        This is the base method that all understand_* methods delegate to.
-        """
-        try:
-            # Route to appropriate provider
-            if content_type == "text":
-                if self.config.text_provider == "deepseek":
-                    response_text = await self._call_deepseek(prompt)
-                else:
-                    response_text = await self._call_gemini_text(prompt)
-            else:  # image
-                if self.config.vision_provider == "qwen":
-                    response_text = await self._call_qwen_vision(prompt, image_data, images_data)
-                else:
-                    response_text = await self._call_gemini_vision(prompt, image_data, images_data)
-
-            # Parse response
-            initial_result = _safe_parse_understanding(response_text, source=source_name)
-            if initial_result.extraction_confidence > 0:
-                logger.info(f"[UNDERSTAND] Successfully extracted insights from {source_name}")
-
-            # Refine if needed
-            refine_content = original_content
-            if content_type == "image" and initial_result.raw_extracted_text:
-                refine_content = f"[IMAGE DESCRIPTION]\n{initial_result.raw_extracted_text}"
-
-            return await self._refine_extraction(
-                initial=initial_result,
-                original_content=refine_content,
-                content_type=content_type,
-                audience=audience,
-            )
-
-        except json.JSONDecodeError as e:
-            logger.error(f"[UNDERSTAND] Failed to parse {source_name} response: {e}")
-            return StoryboardUnderstanding(
-                headline="EXTRACTION FAILED - Check Input",
-                tagline="Could not extract content",
-                what_it_does="The AI could not parse this input. Try a different input or check formatting.",
-                business_value="Unable to determine - extraction failed",
-                who_benefits="Unable to determine - extraction failed",
-                differentiator="Unable to determine - extraction failed",
-                pain_point_addressed="Unable to determine - extraction failed",
-                suggested_icon="alert-triangle",
-                raw_extracted_text=f"PARSE ERROR: {str(e)[:200]}",
-                extraction_confidence=0.0,
-            )
-        except Exception as e:
-            logger.error(f"[UNDERSTAND] {source_name} understanding failed: {e}")
-            return _safe_parse_understanding("", source=f"{source_name}-error: {str(e)[:100]}")
-
-    def _build_base_prompt_context(self, audience: str) -> tuple[str, str, str]:
-        """Build common prompt context elements."""
-        knowledge_context = self._build_knowledge_context(audience)
-        language_guidelines = self._build_language_guidelines_minimal(audience)
-        value_angle = get_value_angle_instruction(audience)
-        return knowledge_context, language_guidelines, value_angle
 
     async def understand_code(
         self,
@@ -525,8 +502,25 @@ Return ONLY valid JSON matching this exact structure:
         audience: str = "c_suite",
         file_name: str | None = None,
     ) -> StoryboardUnderstanding:
-        """Stage 1: Analyze code and extract business value."""
-        knowledge_context, language_guidelines, value_angle = self._build_base_prompt_context(audience)
+        """
+        Stage 1: Analyze code and extract business value.
+
+        Minimal constraints - let the model find what matters.
+        Zero hardcoded company/product info.
+
+        Args:
+            code_content: Source code as string
+            icp_preset: Optional ICP config (ignored - kept for API compatibility)
+            audience: Target audience persona
+            file_name: Optional file name for context
+
+        Returns:
+            StoryboardUnderstanding with extracted insights
+        """
+        # Build dynamic context from knowledge cache only
+        knowledge_context = self._build_knowledge_context(audience)
+        language_guidelines = self._build_language_guidelines_minimal(audience)
+        value_angle_instruction = self._get_value_angle_instruction(audience)
 
         prompt = f"""Analyze this code and extract business value.
 
@@ -540,6 +534,7 @@ CODE:
 TARGET AUDIENCE: {audience}
 
 {knowledge_context if knowledge_context else ""}
+
 {language_guidelines if language_guidelines else ""}
 
 EXTRACT:
@@ -548,10 +543,10 @@ EXTRACT:
 - What problem does it solve?
 - What makes it special?
 
-{value_angle}
+{value_angle_instruction}
 
 CRITICAL RULES:
-- NEVER include personal names - use roles/personas
+- NEVER include personal names - use roles/personas (e.g., "Operations Team" not "John")
 - ALWAYS derive business value - infer from the problem being solved
 - If value isn't explicit, INFER it
 
@@ -569,13 +564,62 @@ Return JSON:
     "suggested_icon": "Simple icon name"
 }}"""
 
-        return await self._understand_content(
-            prompt=prompt,
-            content_type="text",
-            audience=audience,
-            original_content=code_content,
-            source_name="code",
-        )
+        try:
+            # Route to DeepSeek or Gemini based on config
+            if self.config.text_provider == "deepseek":
+                logger.info(f"[UNDERSTAND] Using DeepSeek ({self.config.deepseek_model}) for code understanding")
+                response_text = await self._call_deepseek(prompt)
+            else:
+                # Use Gemini
+                self._ensure_client()
+                logger.info(f"[UNDERSTAND] Using Gemini ({self.config.gemini_vision_model}) for code understanding")
+                response = self._client.models.generate_content(
+                    model=self.config.gemini_vision_model,
+                    contents=prompt,
+                )
+                response_text = response.text
+
+            # Parse JSON response
+            json_str = response_text.strip()
+            # Handle markdown code blocks
+            if json_str.startswith("```"):
+                json_str = json_str.split("```")[1]
+                if json_str.startswith("json"):
+                    json_str = json_str[4:]
+                json_str = json_str.strip()
+
+            data = json.loads(json_str)
+            initial_result = StoryboardUnderstanding(**data)
+
+            # Stage 2 (REFINE): If low confidence, run through alternate model
+            refined_result = await self._refine_extraction(
+                initial=initial_result,
+                original_content=code_content,
+                content_type="text",
+                audience=audience,
+            )
+            return refined_result
+
+        except json.JSONDecodeError as e:
+            logger.error(f"[UNDERSTAND] Failed to parse response: {e}")
+            logger.error(f"[UNDERSTAND] Raw response was: {response_text[:500] if response_text else 'None'}")
+            # DO NOT return generic fallback - that hides extraction failures
+            # Instead, return with low confidence so user knows to check
+            return StoryboardUnderstanding(
+                headline="EXTRACTION FAILED - Check Input",
+                tagline="Could not extract content from this code",
+                what_it_does="The AI could not parse this input. Try a different code file or check formatting.",
+                business_value="Unable to determine - extraction failed",
+                who_benefits="Unable to determine - extraction failed",
+                differentiator="Unable to determine - extraction failed",
+                pain_point_addressed="Unable to determine - extraction failed",
+                suggested_icon="alert-triangle",
+                raw_extracted_text=f"PARSE ERROR: {str(e)[:200]}",
+                extraction_confidence=0.0,  # Zero confidence = failed
+            )
+        except Exception as e:
+            logger.error(f"[GEMINI] Understanding failed: {e}")
+            raise
 
     async def understand_transcript(
         self,
@@ -584,66 +628,134 @@ Return JSON:
         audience: str = "c_suite",
         context: str | None = None,
     ) -> StoryboardUnderstanding:
-        """Stage 1: Extract insights from transcript with minimal constraints."""
-        knowledge_context, language_guidelines, value_angle = self._build_base_prompt_context(audience)
+        """
+        Stage 1: Extract insights from transcript with minimal constraints.
 
-        # Add randomness to prompt style
-        import random
-        prompt_styles = [
-            "What's the ONE thing that would make {audience} stop scrolling?",
-            "If you had 3 seconds to grab {audience}'s attention, what would you say?",
-            "What's the most surprising or compelling insight here for {audience}?",
-            "What would make {audience} forward this to a colleague?",
-        ]
-        creative_hook = random.choice(prompt_styles).format(audience=audience)
+        Let the model find what matters. Zero hardcoded company/product info.
 
-        prompt = f"""Read this content and find what matters most.
+        Args:
+            transcript: Full transcript text (up to 32K chars)
+            icp_preset: Optional ICP config (ignored - kept for API compatibility)
+            audience: Target audience for tone/focus
+            context: Optional context (e.g., "Sales call", "Demo")
+
+        Returns:
+            StoryboardUnderstanding with insights extracted FROM the transcript
+        """
+        # Build dynamic knowledge context (from cache, or empty)
+        knowledge_context = self._build_knowledge_context(audience)
+        language_guidelines = self._build_language_guidelines_minimal(audience)
+
+        # Get value angle for this audience
+        value_angle_instruction = self._get_value_angle_instruction(audience)
+
+        prompt = f"""Extract key insights from this content.
 
 {f"CONTEXT: {context}" if context else ""}
 
 CONTENT:
 {transcript[:32000]}
 
-YOUR CHALLENGE: {creative_hook}
-
-TARGET: {audience}
+TARGET AUDIENCE: {audience}
 
 {knowledge_context if knowledge_context else ""}
+
 {language_guidelines if language_guidelines else ""}
 
-{value_angle}
+EXTRACTION PRIORITIES:
+- Preserve EXACT quotes and specific numbers
+- Note speaker ROLES (not personal names - generalize to "Field Tech", "Project Manager", "Operations Team")
+- Find what would resonate with {audience}
+- ALWAYS derive business value - infer it from context if not explicitly stated
 
-BE CREATIVE. BE SPECIFIC. BE FRESH.
-- Pull exact quotes and real numbers
-- Use job titles, not personal names
-- Infer value if not explicit - what problem is being solved?
-- Make it feel DIFFERENT from the last thing you wrote
+{value_angle_instruction}
 
-Return JSON (but make each field UNIQUE to this content):
+CRITICAL RULES:
+- NEVER output "Not mentioned in transcript" - always derive/infer value
+- NEVER include personal names - use titles/roles/personas instead (e.g., "Operations Team" not "John and Sarah")
+- If value isn't explicit, INFER it from the problem being solved
+
+Return JSON:
 {{
-    "raw_extracted_text": "verbatim quotes and specifics you found",
+    "raw_extracted_text": "Key quotes, numbers, specifics from content",
     "extraction_confidence": 0.0-1.0,
-    "headline": "something that would stop them mid-scroll",
-    "tagline": "fresh angle on this specific content",
-    "what_it_does": "plain english, no jargon",
-    "business_value": "real impact - infer if needed",
-    "who_benefits": "job titles only",
-    "differentiator": "what makes THIS different",
-    "pain_point_addressed": "the real problem",
-    "suggested_icon": "visual metaphor"
+    "headline": "Punchy headline from content (8 words max)",
+    "tagline": "Unique to this content (10 words max)",
+    "what_it_does": "Plain English (2 sentences max)",
+    "business_value": "ALWAYS provide value - quantified if possible, inferred if not",
+    "who_benefits": "Role/persona titles ONLY (e.g., 'Field Crews', 'Operations Teams') - NO personal names",
+    "differentiator": "What stands out",
+    "pain_point_addressed": "Problem solved",
+    "suggested_icon": "Simple icon name"
 }}"""
 
-        return await self._understand_content(
-            prompt=prompt,
-            content_type="text",
-            audience=audience,
-            original_content=transcript,
-            source_name="transcript",
-        )
+        try:
+            # Route to DeepSeek or Gemini based on config
+            if self.config.text_provider == "deepseek":
+                logger.info(f"[UNDERSTAND] Using DeepSeek ({self.config.deepseek_model}) for transcript understanding")
+                response_text = await self._call_deepseek(prompt)
+            else:
+                # Use Gemini
+                self._ensure_client()
+                logger.info(f"[UNDERSTAND] Using Gemini ({self.config.gemini_vision_model}) for transcript understanding")
+                response = self._client.models.generate_content(
+                    model=self.config.gemini_vision_model,
+                    contents=prompt,
+                )
+                response_text = response.text
+
+            # Parse JSON response with safe fallback
+            initial_result = _safe_parse_understanding(response_text, source="transcript")
+            if initial_result.extraction_confidence > 0:
+                logger.info(f"[UNDERSTAND] Successfully extracted insights from transcript for {audience}")
+
+            # Stage 2 (REFINE): If low confidence, run through alternate model
+            refined_result = await self._refine_extraction(
+                initial=initial_result,
+                original_content=transcript,
+                content_type="text",
+                audience=audience,
+            )
+            return refined_result
+
+        except Exception as e:
+            logger.error(f"[GEMINI] Transcript understanding failed: {e}")
+            return _safe_parse_understanding("", source=f"transcript-error: {str(e)[:100]}")
 
     def _get_persona_extraction_focus(self, audience: str, audience_info: dict) -> str:
         """Get persona-specific extraction instructions."""
-        return get_persona_extraction_focus(audience)
+        extractions = {
+            "business_owner": """FOCUS FOR BUSINESS OWNER:
+- What PROFIT or REVENUE impact was discussed?
+- What TIME savings would they get back (family time, less nights/weekends)?
+- What HEADACHES would disappear?
+- Did they mention competitors or falling behind?""",
+
+            "c_suite": """FOCUS FOR C-SUITE EXECUTIVE:
+- What ROI or METRICS were mentioned?
+- What SCALABILITY or GROWTH enablement was discussed?
+- What DATA or VISIBILITY improvements?
+- What COMPETITIVE advantages?""",
+
+            "btl_champion": """FOCUS FOR OPERATIONS/PROJECT MANAGER:
+- What DAILY FRUSTRATIONS would be eliminated?
+- What would make them LOOK GOOD to leadership?
+- What COORDINATION problems were mentioned?
+- What would their TEAM actually use?""",
+
+            "top_tier_vc": """FOCUS FOR VC/INVESTOR:
+- What MARKET SIZE indicators were mentioned?
+- What TRACTION or GROWTH metrics?
+- What MOAT or defensibility?
+- What makes this a CATEGORY-DEFINING opportunity?""",
+
+            "field_crew": """FOCUS FOR FIELD CREW:
+- What would make their JOB EASIER?
+- What PAPERWORK or HASSLE would disappear?
+- What TOOLS would they actually use on the job site?
+- Keep it SIMPLE - 5th grade vocabulary.""",
+        }
+        return extractions.get(audience, extractions["c_suite"])
 
     async def understand_image(
         self,
@@ -652,16 +764,34 @@ Return JSON (but make each field UNIQUE to this content):
         audience: str = "c_suite",
         sanitize_ip: bool = True,
     ) -> StoryboardUnderstanding:
-        """Stage 1: Analyze image and extract business value."""
+        """
+        Stage 1: Analyze image and extract business value.
+
+        Minimal constraints - let the model find what matters.
+        Zero hardcoded company/product info.
+
+        Args:
+            image_data: Image bytes or base64 string
+            icp_preset: Optional ICP config (ignored - kept for API compatibility)
+            audience: Target audience persona
+            sanitize_ip: Whether to apply extra IP sanitization
+
+        Returns:
+            StoryboardUnderstanding with extracted insights
+        """
         # Handle base64 string input
         if isinstance(image_data, str):
             if image_data.startswith("data:"):
+                # Remove data URL prefix
                 image_data = image_data.split(",")[1]
             image_bytes = base64.b64decode(image_data)
         else:
             image_bytes = image_data
 
-        knowledge_context, language_guidelines, value_angle = self._build_base_prompt_context(audience)
+        # Build dynamic context from knowledge cache only
+        knowledge_context = self._build_knowledge_context(audience)
+        language_guidelines = self._build_language_guidelines_minimal(audience)
+        value_angle_instruction = self._get_value_angle_instruction(audience)
 
         prompt = f"""Analyze this image and extract ALL content.
 
@@ -671,6 +801,7 @@ Do NOT generate generic copy. Do NOT make things up.
 TARGET AUDIENCE: {audience}
 
 {knowledge_context if knowledge_context else ""}
+
 {language_guidelines if language_guidelines else ""}
 
 EXTRACT:
@@ -679,11 +810,11 @@ EXTRACT:
 - Timing, versions, phases if shown
 - Workflow steps, connections, relationships
 
-{value_angle}
+{value_angle_instruction}
 
 CRITICAL RULES:
 - NEVER output "Not mentioned in transcript/image" - always INFER from context
-- NEVER include personal names - use roles/personas
+- NEVER include personal names - use roles/personas (e.g., "Project Managers" not "John")
 - ALWAYS derive business value and problem solved - infer from what you see
 - If something isn't explicit, INFER it from the context
 
@@ -701,14 +832,46 @@ Return JSON:
     "suggested_icon": "Icon representing content"
 }}"""
 
-        return await self._understand_content(
-            prompt=prompt,
-            content_type="image",
-            audience=audience,
-            original_content="[IMAGE]",
-            source_name="image",
-            image_data=image_bytes,
-        )
+        try:
+            # Route to Qwen VL or Gemini based on config
+            if self.config.vision_provider == "qwen":
+                logger.info(f"[UNDERSTAND] Using Qwen VL ({self.config.qwen_model}) for image understanding")
+                response_text = await self._call_qwen_vision(prompt, image_data=image_bytes)
+            else:
+                # Use Gemini
+                self._ensure_client()
+                logger.info(f"[UNDERSTAND] Using Gemini ({self.config.gemini_vision_model}) for image understanding")
+                from google.genai import types
+
+                image_part = types.Part.from_bytes(
+                    data=image_bytes,
+                    mime_type="image/png",
+                )
+
+                response = self._client.models.generate_content(
+                    model=self.config.gemini_vision_model,
+                    contents=[image_part, prompt],
+                )
+                response_text = response.text
+
+            # Parse JSON response with safe fallback
+            initial_result = _safe_parse_understanding(response_text, source="image")
+            if initial_result.extraction_confidence > 0:
+                logger.info(f"[UNDERSTAND] Successfully extracted insights from image")
+
+            # Stage 2 (REFINE): If low confidence, run through DeepSeek for reasoning pass
+            # For images, we pass the raw_extracted_text as context since we can't re-send the image
+            refined_result = await self._refine_extraction(
+                initial=initial_result,
+                original_content=f"[IMAGE DESCRIPTION FROM QWEN VL]\n{initial_result.raw_extracted_text}",
+                content_type="image",
+                audience=audience,
+            )
+            return refined_result
+
+        except Exception as e:
+            logger.error(f"[GEMINI] Image understanding failed: {e}")
+            return _safe_parse_understanding("", source=f"image-error: {str(e)[:100]}")
 
     async def understand_multiple_images(
         self,
@@ -717,12 +880,29 @@ Return JSON:
         audience: str = "c_suite",
         sanitize_ip: bool = True,
     ) -> StoryboardUnderstanding:
-        """Stage 1: Analyze multiple images and extract combined business value."""
+        """
+        Stage 1: Analyze multiple images and extract combined business value.
+
+        Minimal constraints - let the model find what matters.
+        Zero hardcoded company/product info.
+
+        Args:
+            images_data: List of image bytes (up to 3 images)
+            icp_preset: Optional ICP config (ignored - kept for API compatibility)
+            audience: Target audience persona
+            sanitize_ip: Whether to apply extra IP sanitization
+
+        Returns:
+            StoryboardUnderstanding with combined insights from all images
+        """
         if len(images_data) > 3:
             logger.warning(f"Received {len(images_data)} images, using first 3 only")
             images_data = images_data[:3]
 
-        knowledge_context, language_guidelines, value_angle = self._build_base_prompt_context(audience)
+        # Build dynamic context from knowledge cache only
+        knowledge_context = self._build_knowledge_context(audience)
+        language_guidelines = self._build_language_guidelines_minimal(audience)
+        value_angle_instruction = self._get_value_angle_instruction(audience)
 
         prompt = f"""Analyze these {len(images_data)} images and extract ALL content.
 
@@ -732,6 +912,7 @@ Do NOT generate generic copy. Do NOT make things up.
 TARGET AUDIENCE: {audience}
 
 {knowledge_context if knowledge_context else ""}
+
 {language_guidelines if language_guidelines else ""}
 
 EXTRACT FROM EACH IMAGE:
@@ -740,7 +921,7 @@ EXTRACT FROM EACH IMAGE:
 - Timing, versions, phases if shown
 - Workflow steps, connections, relationships
 
-{value_angle}
+{value_angle_instruction}
 
 Then SYNTHESIZE into unified message.
 
@@ -763,42 +944,122 @@ Return JSON:
     "suggested_icon": "Icon representing theme"
 }}"""
 
-        return await self._understand_content(
-            prompt=prompt,
-            content_type="image",
-            audience=audience,
-            original_content="[MULTI-IMAGE]",
-            source_name="multi-image",
-            images_data=images_data,
-        )
+        try:
+            # Route to Qwen VL or Gemini based on config
+            if self.config.vision_provider == "qwen":
+                logger.info(f"[UNDERSTAND] Using Qwen VL ({self.config.qwen_model}) for {len(images_data)} images")
+                response_text = await self._call_qwen_vision(prompt, images_data=images_data)
+            else:
+                # Use Gemini
+                self._ensure_client()
+                logger.info(f"[UNDERSTAND] Using Gemini ({self.config.gemini_vision_model}) for {len(images_data)} images")
+                from google.genai import types
 
-    # =========================================================================
-    # STORYBOARD GENERATION
-    # =========================================================================
+                # Create image parts for all images
+                content_parts = []
+                for i, img_bytes in enumerate(images_data):
+                    image_part = types.Part.from_bytes(
+                        data=img_bytes,
+                        mime_type="image/png",
+                    )
+                    content_parts.append(image_part)
 
-    def _build_storyboard_prompt(
+                # Add the prompt at the end
+                content_parts.append(prompt)
+
+                response = self._client.models.generate_content(
+                    model=self.config.gemini_vision_model,
+                    contents=content_parts,
+                )
+                response_text = response.text
+
+            # Parse JSON response with safe fallback
+            initial_result = _safe_parse_understanding(response_text, source="multi-image")
+            if initial_result.extraction_confidence > 0:
+                logger.info(f"[GEMINI] Successfully understood {len(images_data)} images together")
+
+            # Stage 2 (REFINE): If low confidence, run through DeepSeek for reasoning pass
+            refined_result = await self._refine_extraction(
+                initial=initial_result,
+                original_content=f"[MULTI-IMAGE DESCRIPTION FROM QWEN VL]\n{initial_result.raw_extracted_text}",
+                content_type="image",
+                audience=audience,
+            )
+            return refined_result
+
+        except Exception as e:
+            logger.error(f"[GEMINI] Multi-image understanding failed: {e}")
+            return _safe_parse_understanding("", source=f"multi-image-error: {str(e)[:100]}")
+
+    async def generate_storyboard(
         self,
         understanding: StoryboardUnderstanding,
-        stage: str,
-        audience: str,
-        output_format: str,
-        visual_style: str,
-        artist_style: str | None,
-        persona: dict,
-        brand: dict,
-        visual_style_config: dict,
-        unique_seed: str,
-    ) -> str:
-        """Build the image generation prompt."""
-        knowledge_context = self._build_knowledge_context(audience)
-        persona_context = self._build_persona_generation_context(audience, persona)
-        section_headers = get_section_headers(audience)
+        stage: str = "preview",
+        audience: str = "c_suite",
+        output_format: str = "infographic",
+        visual_style: str = "polished",
+        artist_style: str | None = None,
+        icp_preset: dict[str, Any] | None = None,
+        custom_style: dict[str, Any] | None = None,
+    ) -> bytes:
+        """
+        Stage 2: Generate beautiful PNG storyboard.
 
-        # Build content section based on audience
+        Uses Gemini Image Generation to create a professional one-page
+        executive storyboard ready for email attachment.
+
+        Args:
+            understanding: StoryboardUnderstanding from Stage 1
+            stage: "preview", "demo", or "shipped" (affects visual style)
+            audience: Target audience (top_tier_vc uses different structure)
+            output_format: "infographic" (horizontal 16:9) or "storyboard" (vertical, detailed)
+            visual_style: "clean", "polished", "photo_realistic", or "minimalist"
+            icp_preset: Optional ICP preset for visual style
+            custom_style: Optional custom style overrides
+
+        Returns:
+            PNG image bytes
+        """
+        self._ensure_client()
+
+        from src.tools.storyboard.coperniq_presets import (
+            COPERNIQ_ICP,
+            COPERNIQ_BRAND,
+            get_stage_template,
+            get_audience_persona,
+        )
+
+        if icp_preset is None:
+            icp_preset = COPERNIQ_ICP
+
+        import uuid
+        from datetime import datetime
+
+        stage_template = get_stage_template(stage)
+        visual_style_config = icp_preset.get("visual_style", {})
+        brand = COPERNIQ_BRAND
+        persona = get_audience_persona(audience, icp_preset)
+
+        # Add uniqueness to avoid cached/repetitive outputs
+        unique_seed = f"{datetime.now().isoformat()}-{uuid.uuid4().hex[:8]}"
+
+        # Build audience-specific content structure
+        # Get dynamic proof points from knowledge cache
+        knowledge_context = self._build_knowledge_context(audience)
+
+        # Build persona-specific generation context (value angle, what they care about)
+        persona_context = self._build_persona_generation_context(audience, persona)
+
         if audience == "top_tier_vc":
+            # VC/Investor storyboard - flexible investment thesis
+
+            # Include raw extraction for richer context
             raw_context = ""
             if understanding.raw_extracted_text:
-                raw_context = f"\nSOURCE MATERIAL:\n{understanding.raw_extracted_text[:600]}"
+                raw_context = f"""
+SOURCE MATERIAL (use to derive specific insights):
+{understanding.raw_extracted_text[:600]}
+"""
 
             content_section = f"""CONTENT FOR INVESTOR AUDIENCE:
 
@@ -818,9 +1079,15 @@ CREATIVE FREEDOM: Design the visual however best tells this story.
 You choose the layout, sections, and flow. No rigid template required.
 Make it visually compelling - this could end up in a pitch deck."""
         else:
+            # Customer-focused storyboard (sales, internal, field crew)
+
+            # Include raw extraction for context (if available)
             raw_context = ""
             if understanding.raw_extracted_text:
-                raw_context = f"\nRAW EXTRACTION:\n{understanding.raw_extracted_text[:500]}"
+                raw_context = f"""
+RAW EXTRACTION (for context):
+{understanding.raw_extracted_text[:500]}
+"""
 
             content_section = f"""CONTENT TO DISPLAY:
 
@@ -833,6 +1100,7 @@ WHAT WE EXTRACTED:
 - For: "{understanding.who_benefits}"
 - Key Benefit: "{understanding.differentiator}"
 - Problem Solved: "{understanding.pain_point_addressed}"
+
 {raw_context}
 
 {knowledge_context if knowledge_context else ""}
@@ -845,19 +1113,21 @@ GUIDELINES:
 
 NEVER output generic copy. ALWAYS use specifics from the extraction."""
 
-        dynamic_tagline = understanding.tagline if understanding.tagline else brand.get('tagline', '')
+        # Use dynamic tagline from understanding (falls back to brand tagline if not set)
+        dynamic_tagline = understanding.tagline if understanding.tagline else brand['tagline']
 
-        return f"""Create a UNIQUE professional one-page executive storyboard infographic.
+        # Build the image generation prompt
+        prompt = f"""Create a UNIQUE professional one-page executive storyboard infographic.
 
 GENERATION SEED: {unique_seed} (use this to create variation in layout and icons)
 
-BRAND: {brand.get('company', 'Product')} - "{dynamic_tagline}"
+BRAND: {brand['company']} - "{dynamic_tagline}"
 
 {content_section}
 
 VISUAL REQUIREMENTS:
-- Style: Modern professional
-- Color scheme: {brand.get('company', 'Product')} brand colors (MUST USE THESE EXACT COLORS):
+- Style: {stage_template.get('visual_style', 'Modern professional')}
+- Color scheme: {brand['company']} brand colors (MUST USE THESE EXACT COLORS):
   - Primary (CTAs/headers): {visual_style_config.get('primary_color', '#23433E')} (dark teal/forest green)
   - Accent (highlights/emphasis): {visual_style_config.get('accent_color', '#2D9688')} (teal)
   - Text: {visual_style_config.get('text_color', '#333333')} (dark gray)
@@ -866,20 +1136,20 @@ VISUAL REQUIREMENTS:
 - Include simple icons representing the content (construction/business metaphors)
 - Large, readable text (executive-friendly)
 
-TEXT REQUIREMENTS:
-- Spell everything correctly - double-check spelling
-- Use LARGE fonts - small text gets garbled
-- Keep text SHORT and IMPACTFUL
-- DO NOT add generic labels like "Value Proposition" or "Key Benefit" - let the content speak for itself
-- NO section headers unless they add real value to the story
-- MAKE IT UNIQUE: Vary layout, icon placement, and flow based on the GENERATION SEED above
-- Focus on the VISUAL STORY, not labeling everything
+TEXT ACCURACY REQUIREMENTS (CRITICAL - DO NOT IGNORE):
+- ONLY use the EXACT text provided in the content section above - DO NOT invent or modify words
+- Every single word must be spelled correctly - double-check spelling
+- Use LARGE fonts (minimum 18pt equivalent) - small text gets garbled
+- If you cannot render text clearly, use fewer words or icons instead
+- NEVER include random letters or gibberish text
+- Section headers: Use ONLY these exact words: "Value Proposition", "Key Benefit", "Problem Solved", "For"
+- Keep descriptions SHORT (under 15 words per section) to ensure clarity
 
-{get_format_layout_instructions(output_format)}
+{self._get_format_layout_instructions(output_format)}
 
-{get_visual_style_instructions(visual_style)}
+{self._get_visual_style_instructions(visual_style)}
 
-{get_artist_style_instructions(artist_style) if artist_style else ""}
+{self._get_artist_style_instructions(artist_style) if artist_style else ""}
 
 DESIGN PRINCIPLES:
 - {visual_style_config.get('aesthetic', 'Modern, professional, teal/green palette. Corporate but approachable.')}
@@ -889,85 +1159,20 @@ DESIGN PRINCIPLES:
 - CRITICAL: Use teal/green color palette, NOT orange or blue
 - NO promotional badges or ribbons - this is executive content, not a sales flyer
 
-{get_format_output_instructions(output_format)}"""
-
-    async def generate_storyboard(
-        self,
-        understanding: StoryboardUnderstanding,
-        stage: str = "preview",
-        audience: str = "c_suite",
-        output_format: str = "infographic",
-        visual_style: str = "polished",
-        artist_style: str | None = None,
-        icp_preset: dict[str, Any] | None = None,
-        custom_style: dict[str, Any] | None = None,
-    ) -> bytes:
-        """
-        Stage 2: Generate beautiful PNG storyboard.
-
-        Returns PNG image bytes.
-        """
-        self._ensure_client()
-
-        from src.tools.storyboard.coperniq_presets import (
-            COPERNIQ_ICP,
-            COPERNIQ_BRAND,
-            get_audience_persona,
-        )
-
-        import uuid
-        from datetime import datetime
-
-        if icp_preset is None:
-            icp_preset = COPERNIQ_ICP
-
-        visual_style_config = icp_preset.get("visual_style", {})
-        brand = COPERNIQ_BRAND
-        persona = get_audience_persona(audience, icp_preset)
-        unique_seed = f"{datetime.now().isoformat()}-{uuid.uuid4().hex[:8]}"
-
-        prompt = self._build_storyboard_prompt(
-            understanding=understanding,
-            stage=stage,
-            audience=audience,
-            output_format=output_format,
-            visual_style=visual_style,
-            artist_style=artist_style,
-            persona=persona,
-            brand=brand,
-            visual_style_config=visual_style_config,
-            unique_seed=unique_seed,
-        )
+{self._get_format_output_instructions(output_format)}"""
 
         try:
-            import asyncio
             from google.genai import types
 
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    response = self._client.models.generate_content(
-                        model=self.config.image_model,
-                        contents=prompt,
-                        config=types.GenerateContentConfig(
-                            response_modalities=["IMAGE", "TEXT"],
-                        ),
-                    )
-                    break
-                except Exception as e:
-                    error_str = str(e).lower()
-                    # Retry on common transient errors
-                    is_retryable = any(x in error_str for x in [
-                        "503", "unavailable", "overloaded", "server error",
-                        "500", "internal", "temporarily", "rate limit", "quota"
-                    ])
-                    if is_retryable and attempt < max_retries - 1:
-                        wait_time = (attempt + 1) * 5
-                        logger.warning(f"[GEMINI] Transient error, waiting {wait_time}s: {e}")
-                        await asyncio.sleep(wait_time)
-                        continue
-                    raise
+            response = self._client.models.generate_content(
+                model=self.config.image_model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_modalities=["IMAGE", "TEXT"],
+                ),
+            )
 
+            # Extract image from response
             for part in response.candidates[0].content.parts:
                 if hasattr(part, "inline_data") and part.inline_data:
                     return part.inline_data.data
@@ -978,25 +1183,24 @@ DESIGN PRINCIPLES:
             logger.error(f"[GEMINI] Image generation failed: {e}")
             raise
 
-    # =========================================================================
-    # KNOWLEDGE & LANGUAGE HELPERS
-    # =========================================================================
-
     def _build_language_guidelines(self, icp_preset: dict[str, Any], audience: str = "c_suite") -> str:
         """Build language guidelines string for prompts, enriched with knowledge."""
+        # Get static defaults from preset
         avoid = icp_preset.get("language_style", {}).get("avoid", [])
         use = icp_preset.get("language_style", {}).get("use", [])
         tone = icp_preset.get("tone", "Friendly and professional")
 
+        # Merge with dynamic knowledge from cache
         try:
             from src.knowledge.cache import KnowledgeCache
             cache = KnowledgeCache.get()
             if cache.is_loaded():
                 knowledge = cache.get_language_guidelines(audience)
+                # Knowledge terms take priority (fresher data from real conversations)
                 avoid = list(set(knowledge["avoid"] + avoid))[:15]
                 use = list(set(knowledge["use"] + use))[:15]
         except Exception:
-            pass
+            pass  # Graceful degradation - use static presets only
 
         return f"""LANGUAGE GUIDELINES:
 - Tone: {tone}
@@ -1030,10 +1234,58 @@ DESIGN PRINCIPLES:
 
             return "\n".join(sections)
         except Exception:
-            return ""
+            return ""  # Graceful degradation
+
+    def _get_value_angle_instruction(self, audience: str) -> str:
+        """
+        Get value angle framing instruction for extraction based on audience.
+
+        This ensures the extraction phase knows HOW to frame value:
+        - COI (Cost of Inaction): What they LOSE by not acting
+        - ROI (Return on Investment): What they GAIN by acting
+        - EASE: How much simpler their life becomes
+        """
+        value_angles = {
+            "business_owner": """VALUE FRAMING: COI (Cost of Inaction)
+Frame value as what they LOSE by not having this:
+- Lost revenue, wasted time, missed opportunities
+- Pain they continue to suffer without it
+- "Every day without this costs you..."
+""",
+            "c_suite": """VALUE FRAMING: ROI (Return on Investment)
+Frame value as what they GAIN from this:
+- Measurable returns: dollars saved, hours reclaimed, % improvement
+- Competitive advantage, scalability, data insights
+- "This delivers X return on Y investment"
+""",
+            "btl_champion": """VALUE FRAMING: COI (Cost of Inaction)
+Frame value as risk/pain of NOT having this:
+- How it makes them look bad to leadership
+- Daily frustrations that continue without it
+- "Without this, you'll keep dealing with..."
+""",
+            "top_tier_vc": """VALUE FRAMING: ROI (Return on Investment)
+Frame value as investment opportunity:
+- Market size, growth potential, defensible moat
+- Traction metrics, expansion potential
+- "This represents X opportunity with Y traction"
+""",
+            "field_crew": """VALUE FRAMING: EASE (Simplicity)
+Frame value as making their job EASIER:
+- Less paperwork, faster completion, get home on time
+- Simple, practical benefits they'll actually use
+- "This means less hassle and faster work"
+""",
+        }
+        return value_angles.get(audience, value_angles["c_suite"])
 
     def _build_language_guidelines_minimal(self, audience: str) -> str:
-        """Build minimal language guidelines from knowledge cache only."""
+        """
+        Build minimal language guidelines from knowledge cache only.
+
+        Zero hardcoding - only uses dynamic data from knowledge cache.
+        Returns empty string if cache not loaded or empty.
+        """
         try:
             from src.knowledge.cache import KnowledgeCache
             cache = KnowledgeCache.get()
@@ -1055,22 +1307,15 @@ DESIGN PRINCIPLES:
 
             return "\n".join(parts)
         except Exception:
-            return ""
-
-    # =========================================================================
-    # PERSONA HELPERS (delegate to config)
-    # =========================================================================
-
-    def _get_value_angle_instruction(self, audience: str) -> str:
-        """Get value angle framing instruction for extraction based on audience."""
-        return get_value_angle_instruction(audience)
-
-    def _get_audience_section_headers(self, audience: str) -> str:
-        """Get audience-specific section headers for the storyboard."""
-        return get_section_headers(audience)
+            return ""  # Graceful degradation
 
     def _build_persona_generation_context(self, audience: str, persona: dict) -> str:
-        """Build persona-specific context for image generation."""
+        """
+        Build persona-specific context for image generation.
+
+        Uses the rich persona data from presets to guide Nano Banana's
+        creative output - making each persona feel distinct.
+        """
         value_angle = persona.get("value_angle", "ROI")
         value_framing = persona.get("value_framing", "")
         cares_about = persona.get("cares_about", [])
@@ -1078,73 +1323,190 @@ DESIGN PRINCIPLES:
         title = persona.get("title", audience)
         tone = persona.get("tone", "Professional")
 
-        # Simplified persona context - less prescriptive, more creative freedom
+        # Field Crew: Special handling with simplified design
         if audience == "field_crew":
+            style = persona.get("infographic_style", {})
             return f"""AUDIENCE: {title}
-THEY CARE ABOUT: {', '.join(cares_about[:3])}
-MAKE IT: Simple, practical, 5th grade reading level
+THEY CARE ABOUT: {', '.join(cares_about)}
+VALUE ANGLE: EASE - make their job easier, no ROI/savings talk
+DESIGN APPROACH: {style.get('design', 'Simple icons, big text, minimal words')}
+LANGUAGE RULES:
+- {chr(10).join('- ' + r for r in style.get('language_rules', ['Use 5th grade vocabulary'])[:3])}
+FRAMING: {value_framing}
 TONE: {tone}"""
 
+        # C-Suite: Numbers and data focus
         if audience == "c_suite":
             return f"""AUDIENCE: {title}
-THEY CARE ABOUT: {', '.join(cares_about[:3])}
-MAKE IT: Data-driven, numbers prominent, executive-friendly
+THEY CARE ABOUT: {', '.join(cares_about)}
+VALUE ANGLE: ROI - show the math, the metrics, the return
+DESIGN APPROACH: Clean data visualization, numbers prominent, executive summary feel
+FRAMING: {value_framing}
+HOOKS THAT RESONATE: {'; '.join(hooks[:2])}
 TONE: {tone}"""
 
+        # Business Owner: Emotional, pain→solution
         if audience == "business_owner":
             return f"""AUDIENCE: {title}
-THEY CARE ABOUT: {', '.join(cares_about[:3])}
-MAKE IT: Emotional, relatable, show the pain and solution
+THEY CARE ABOUT: {', '.join(cares_about)}
+VALUE ANGLE: COI (Cost of Inaction) - what they LOSE by not acting
+DESIGN APPROACH: Emotional hook, show the pain → solution story, relatable
+FRAMING: {value_framing}
+HOOKS THAT RESONATE: {'; '.join(hooks[:2])}
 TONE: {tone}"""
 
+        # BTL Champion: Day-in-life practical
         if audience == "btl_champion":
             return f"""AUDIENCE: {title}
-THEY CARE ABOUT: {', '.join(cares_about[:3])}
-MAKE IT: Practical, day-in-life scenarios, career benefits
+THEY CARE ABOUT: {', '.join(cares_about)}
+VALUE ANGLE: COI - career risk of missing this, look good to boss
+DESIGN APPROACH: Day-in-life scenarios, practical benefits, before/after
+FRAMING: {value_framing}
+HOOKS THAT RESONATE: {'; '.join(hooks[:2])}
 TONE: {tone}"""
 
+        # VC/Investor: Investment thesis
         if audience == "top_tier_vc":
             return f"""AUDIENCE: {title}
-THEY CARE ABOUT: {', '.join(cares_about[:3])}
-MAKE IT: Investment-focused, market opportunity, no sales pitch
+THEY CARE ABOUT: {', '.join(cares_about)}
+VALUE ANGLE: ROI - market opportunity, defensibility, return profile
+DESIGN APPROACH: Investment thesis format, market/traction/moat sections
+FRAMING: {value_framing}
+AVOID: Book a demo, contact sales, free trial, marketing buzzwords
 TONE: {tone}"""
 
+        # Default fallback
         return f"""AUDIENCE: {title}
-THEY CARE ABOUT: {', '.join(cares_about[:3]) if cares_about else 'results'}
+THEY CARE ABOUT: {', '.join(cares_about) if cares_about else 'results, efficiency'}
+VALUE ANGLE: {value_angle}
+FRAMING: {value_framing}
 TONE: {tone}"""
-
-    # =========================================================================
-    # FORMAT HELPERS (delegate to config)
-    # =========================================================================
 
     def _get_format_layout_instructions(self, output_format: str) -> str:
         """Get layout instructions based on output format."""
-        return get_format_layout_instructions(output_format)
+        if output_format == "storyboard":
+            return """LAYOUT (VERTICAL STORYBOARD):
+- PORTRAIT orientation - tall, scrollable format
+- Visual flow from TOP TO BOTTOM (vertical reading)
+- Multiple sections stacked vertically
+- Each section tells part of the story
+- Good for detailed explanations and step-by-step narratives
+- Think: LinkedIn article header or presentation slide deck feel"""
+        else:  # infographic (default)
+            return """LAYOUT (HORIZONTAL INFOGRAPHIC):
+- LANDSCAPE orientation - wide, single-view format
+- Visual flow from LEFT TO RIGHT (horizontal reading)
+- Clean, scannable, executive-friendly
+- Key points visible at a glance
+- Good for quick value communication
+- Think: LinkedIn post image or email header"""
 
     def _get_format_output_instructions(self, output_format: str) -> str:
         """Get output specifications based on format."""
-        return get_format_output_instructions(output_format)
+        if output_format == "storyboard":
+            return """OUTPUT:
+- Single image, PORTRAIT 9:16 aspect ratio (vertical)
+- 1080x1920 resolution (mobile/story format)
+- PNG format"""
+        else:  # infographic (default)
+            return """OUTPUT:
+- Single image, LANDSCAPE 16:9 aspect ratio (widescreen horizontal)
+- 1920x1080 resolution (HD widescreen)
+- PNG format"""
 
     def _get_visual_style_instructions(self, visual_style: str) -> str:
         """Get visual style instructions based on style preference."""
-        return get_visual_style_instructions(visual_style)
+        styles = {
+            "clean": """VISUAL STYLE: CLEAN
+- Simple flat icons and shapes
+- Minimal decoration, maximum clarity
+- Bold typography, lots of whitespace
+- No gradients or shadows
+- Think: Apple keynote slides""",
+            "polished": """VISUAL STYLE: POLISHED PROFESSIONAL
+- Refined, corporate-quality graphics
+- Subtle gradients and modern touches
+- Professional iconography
+- Balanced composition with visual hierarchy
+- Think: McKinsey or BCG presentation""",
+            "photo_realistic": """VISUAL STYLE: PHOTO-REALISTIC
+- Include realistic imagery and photos
+- High-quality stock photo aesthetic
+- Blend photos with text overlays
+- Modern editorial feel
+- Think: LinkedIn featured image or magazine layout""",
+            "minimalist": """VISUAL STYLE: MINIMALIST
+- Extreme simplicity, sparse elements
+- Maximum whitespace
+- Only essential text and icons
+- Single accent color usage
+- Think: Japanese design or Dieter Rams""",
+        }
+        return styles.get(visual_style, styles["polished"])
 
     def _get_artist_style_instructions(self, artist_style: str | None) -> str:
         """Get artist style instructions for fun variations."""
-        return get_artist_style_instructions(artist_style)
+        if not artist_style:
+            return ""
 
-    # =========================================================================
-    # HEALTH CHECK
-    # =========================================================================
+        artists = {
+            "salvador_dali": """ARTIST STYLE: SALVADOR DALI
+- Surrealist elements and dreamlike quality
+- Melting or distorted shapes (but keep text readable!)
+- Unexpected juxtapositions
+- Rich, warm colors with dramatic lighting
+- Imaginative, thought-provoking visuals
+- Think: The Persistence of Memory meets corporate presentation""",
+            "monet": """ARTIST STYLE: CLAUDE MONET
+- Impressionist brushstroke texture
+- Soft, diffused lighting
+- Pastel and natural color palette
+- Dreamy, atmospheric quality
+- Nature-inspired elements (water lilies, gardens)
+- Think: Water Lilies meets executive summary""",
+            "diego_rivera": """ARTIST STYLE: DIEGO RIVERA
+- Bold muralist style
+- Strong, blocky shapes and forms
+- Workers and industry themes
+- Rich earth tones and vibrant accents
+- Social realism aesthetic
+- Think: Detroit Industry Murals meets tech infographic""",
+            "warhol": """ARTIST STYLE: ANDY WARHOL
+- Pop art boldness
+- High contrast, vibrant colors
+- Repetition and pattern elements
+- Commercial art aesthetic
+- Bold outlines and flat colors
+- Think: Campbell's Soup meets business presentation""",
+            "van_gogh": """ARTIST STYLE: VAN GOGH
+- Expressive brushstroke texture
+- Swirling, dynamic movement
+- Bold, emotional color choices
+- Starry Night energy
+- Intense yellows, blues, and greens
+- Think: Starry Night meets executive dashboard""",
+            "picasso": """ARTIST STYLE: PICASSO (CUBIST)
+- Geometric, fragmented forms
+- Multiple perspectives simultaneously
+- Bold, angular shapes
+- Strong black outlines
+- Analytical cubism meets business graphics
+- Think: Three Musicians meets corporate storyboard""",
+        }
+        return artists.get(artist_style, "")
 
     async def health_check(self) -> dict[str, Any]:
-        """Check if Gemini client is properly configured."""
+        """
+        Check if Gemini client is properly configured.
+
+        Returns:
+            Health status dictionary
+        """
         try:
             self._ensure_client()
             return {
                 "status": "healthy",
-                "vision_provider": self.config.vision_provider,
-                "text_provider": self.config.text_provider,
+                "vision_model": self.config.vision_model,
                 "image_model": self.config.image_model,
                 "api_key_configured": bool(self.config.api_key),
             }

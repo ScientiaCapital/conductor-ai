@@ -1,23 +1,23 @@
 # TASK.md - Conductor-AI
 
 **Project**: conductor-ai
-**Last Updated**: 2025-12-04 (Late EOD)
+**Last Updated**: 2025-12-04 (EOD)
 
 ---
 
 ## Current Status
 
-**Phase 7.8: Storyboard Refactoring + Video Integration - COMPLETE**
+**Phase 7.6: Intelligent Model Routing - COMPLETE**
 
-- ✅ Extracted `storyboard_config.py` (271 lines) from gemini_client.py
-- ✅ Refactored gemini_client.py: 1561 → ~1145 lines (-27%)
-- ✅ Added Kurt Geiger artist style (for user's wife)
-- ✅ Fixed "canned response" issue - removed hardcoded taglines
-- ✅ Added Replicate video provider (Luma Ray Flash 2)
-- ✅ Video format routing in demo UI (video_horizontal, video_vertical)
-- ✅ Random creative hooks in transcript extraction for uniqueness
+- ✅ 3-Stage Pipeline: EXTRACT → REFINE → GENERATE
+- ✅ DeepSeek V3 for text understanding (fast, reliable)
+- ✅ Qwen 2.5 VL 72B for vision/OCR (better doc understanding)
+- ✅ Gemini 3 Pro Image Preview for generation (FREE during preview)
+- ✅ Confidence-based refinement (< 0.75 triggers alternate model pass)
+- ✅ Fixed R1 hang issue (R1 is 60-120s, V3 is 3-5s)
+- ✅ VC storyboard polish - creative freedom for GTM/LinkedIn
 
-**Total Tests**: 730 (59 SDK + 204 core + 186 video + 202 storyboard + 58 knowledge + 21 demo)
+**Total Tests**: 727 (59 SDK + 204 core + 186 video + 202 storyboard + 58 knowledge + 18 demo)
 
 **SQL Migrations**: All 4 migrations completed in Supabase
 
@@ -27,8 +27,7 @@
 
 ### 🔴 HIGH Priority
 
-**Video API Keys Needed** - Video generation wired up but needs:
-- `REPLICATE_API_TOKEN` in .env for video generation
+**None currently** - Ready for user direction on next phase
 
 ---
 
@@ -73,21 +72,6 @@ Populate the knowledge base with actual data:
 ---
 
 ## Completed Phases
-
-### Phase 7.8: Storyboard Refactoring + Video (2025-12-04 Late)
-- ✅ Extracted `storyboard_config.py` from gemini_client.py
-- ✅ Refactored gemini_client.py (1561 → 1145 lines, -27%)
-- ✅ Added Kurt Geiger artist style
-- ✅ Fixed hardcoded tagline issue ("canned responses")
-- ✅ Added Replicate video provider (Luma Ray Flash 2)
-- ✅ Video format routing in demo router
-- ✅ Random creative hooks for transcript uniqueness
-
-### Phase 7.7: Persona Differentiation (2025-12-04)
-- ✅ COI (Cost of Inaction) framing for: business_owner, btl_champion
-- ✅ ROI (Return on Investment) framing for: c_suite, top_tier_vc
-- ✅ EASE framing for: field_crew
-- ✅ Value angle injection in all understand_* methods
 
 ### Phase 7.6: Intelligent Model Routing (2025-12-04)
 - ✅ 3-Stage Pipeline architecture (EXTRACT → REFINE → GENERATE)

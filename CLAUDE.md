@@ -9,43 +9,9 @@
 
 ## Current Status (2025-12-04)
 
-### Phase 7.8: Storyboard Refactoring + Video Integration - COMPLETE
-**Branch**: `main`
-**Tests**: 730 total (230 storyboard+demo tests)
-
-Major refactoring and video output format support.
-
-✅ **Config Extraction** (`src/tools/storyboard/storyboard_config.py` - NEW)
-- VALUE_ANGLE_INSTRUCTIONS (COI/ROI/EASE per persona)
-- SECTION_HEADERS (audience-specific)
-- VISUAL_STYLE_INSTRUCTIONS (clean, polished, photo_realistic, minimalist)
-- ARTIST_STYLE_INSTRUCTIONS (salvador_dali, monet, van_gogh, warhol, picasso, **kurt_geiger**)
-- FORMAT_LAYOUT_INSTRUCTIONS (storyboard 9:16, infographic 16:9)
-- Helper functions: `get_value_angle_instruction()`, `get_section_headers()`, etc.
-
-✅ **gemini_client.py Refactored** (1561 → 1145 lines, -27%)
-- Removed hardcoded tagline default (was causing "canned responses")
-- Simplified persona context injection
-- Random creative hooks added to transcript extraction
-- Cleaner separation of concerns
-
-✅ **Video Generation** (`src/tools/video/video_generator.py`)
-- Added Replicate provider (Luma Ray Flash 2 model)
-- VideoProvider.REPLICATE enum value
-- `_generate_with_replicate()`, `_poll_replicate_completion()` methods
-- Demo router routes `video_horizontal` / `video_vertical` formats
-
-✅ **Demo UI** (`static/demo.html`, `src/demo/router.py`)
-- Video output format options in dropdown
-- Video player element for MP4 playback
-- Format detection and routing
-
-**Needs**: `REPLICATE_API_TOKEN` in .env for video generation
-
----
-
 ### Phase 7.7: Persona Differentiation with COI/ROI/EASE - COMPLETE
 **Branch**: `main`
+**Tests**: 260 storyboard+knowledge tests
 
 Each persona now gets distinctly different output through value angle framing.
 
