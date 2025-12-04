@@ -154,14 +154,26 @@ class GeminiConfig:
 
     api_key: str | None = None  # Google API key for Gemini
     openrouter_api_key: str | None = None  # OpenRouter API key for Qwen/DeepSeek
-    # Understanding models
+
+    # ==========================================================================
+    # INTELLIGENT MODEL ROUTING
+    # ==========================================================================
+    # Stage 1 (EXTRACT): Primary models for initial extraction
     vision_provider: VisionModel = "qwen"  # For images (default: qwen for better doc understanding)
     text_provider: TextModel = "deepseek"  # For text/transcripts (default: deepseek for best reasoning)
+
+    # Stage 2 (REFINE): Enable multi-model refinement for low-confidence extractions
+    enable_refinement: bool = True  # If True, low-confidence extractions get refined by alternate model
+    refinement_threshold: float = 0.75  # Confidence below this triggers refinement pass
+
+    # Model identifiers
     gemini_vision_model: str = "models/gemini-2.0-flash"  # Gemini vision model (fallback)
-    qwen_model: str = "qwen/qwen2.5-vl-32b-instruct"  # Qwen 2.5 VL 32B - fast, reliable vision
-    deepseek_model: str = "deepseek/deepseek-v3.2"  # DeepSeek V3.2 - best MoE reasoning for text
-    # Generation model
-    image_model: str = "models/gemini-3-pro-image-preview"  # For generating storyboard images (Nano Banana)
+    qwen_model: str = "qwen/qwen2.5-vl-72b-instruct"  # Qwen 2.5 VL 72B - vision + doc understanding
+    deepseek_model: str = "deepseek/deepseek-r1-0528"  # DeepSeek R1-0528 - reasoning + structured extraction
+
+    # Stage 3 (GENERATE): Image generation (Gemini only - no alternatives)
+    image_model: str = "models/gemini-3-pro-image-preview"  # Nano Banana - FREE during preview
+
     timeout: int = 90
     max_retries: int = 3
 
@@ -176,21 +188,27 @@ class GeminiStoryboardClient:
     """
     Client for Gemini Vision + Image Generation.
 
-    Two-stage pipeline:
-    1. understand_code() / understand_image() - Extract business value
-    2. generate_storyboard() - Create beautiful PNG
+    Three-stage intelligent pipeline:
+    1. EXTRACT - Primary model extracts (DeepSeek for text, Qwen for images)
+    2. REFINE - If confidence < threshold, alternate model validates/improves
+    3. GENERATE - Gemini creates the image (only model that can generate)
+
+    Model Routing Intelligence:
+    - DeepSeek R1-0528: Reasoning model, excels at structured extraction from text
+    - Qwen 2.5 VL 72B: Vision model, excels at OCR and visual understanding
+    - Gemini 3 Pro: Image generation (no alternatives available)
 
     Example:
         client = GeminiStoryboardClient()
 
-        # Stage 1: Understand
+        # Stage 1 + 2: Extract → Refine (automatic model routing)
         understanding = await client.understand_code(
             code_content="def calculate_roi(): ...",
             icp_preset=COPERNIQ_ICP,
             audience="c_suite",
         )
 
-        # Stage 2: Generate
+        # Stage 3: Generate
         png_bytes = await client.generate_storyboard(
             understanding=understanding,
             stage="preview",
@@ -352,7 +370,7 @@ class GeminiStoryboardClient:
         prompt: str,
     ) -> str:
         """
-        Call DeepSeek V3 via OpenRouter for text understanding (code/transcripts).
+        Call DeepSeek R1 via OpenRouter for text understanding (code/transcripts).
 
         Args:
             prompt: Text prompt for the model
@@ -376,6 +394,106 @@ class GeminiStoryboardClient:
         result = await self._call_openrouter_with_retry(payload)
         logger.info(f"[DEEPSEEK] Response received ({len(result)} chars)")
         return result
+
+    async def _refine_extraction(
+        self,
+        initial: StoryboardUnderstanding,
+        original_content: str,
+        content_type: str = "text",
+        audience: str = "c_suite",
+    ) -> StoryboardUnderstanding:
+        """
+        Stage 2 (REFINE): Use alternate model to validate/improve low-confidence extraction.
+
+        Intelligent routing:
+        - If initial extraction used DeepSeek → refine with Qwen (adds vision/structure insight)
+        - If initial extraction used Qwen → refine with DeepSeek (adds reasoning depth)
+
+        Args:
+            initial: Initial extraction result
+            original_content: Original input (code or image description)
+            content_type: "text" or "image" to determine which alternate model to use
+            audience: Target audience for refinement context
+
+        Returns:
+            Refined StoryboardUnderstanding (or original if refinement disabled/unnecessary)
+        """
+        # Skip refinement if disabled or confidence is high enough
+        if not self.config.enable_refinement:
+            return initial
+        if initial.extraction_confidence >= self.config.refinement_threshold:
+            logger.info(f"[REFINE] Skipping - confidence {initial.extraction_confidence:.2f} >= threshold {self.config.refinement_threshold}")
+            return initial
+
+        logger.info(f"[REFINE] Low confidence {initial.extraction_confidence:.2f} - triggering refinement pass")
+
+        # Build refinement prompt with initial extraction context
+        refinement_prompt = f"""You are refining an initial extraction that had low confidence ({initial.extraction_confidence:.2f}).
+
+INITIAL EXTRACTION (may be incomplete or inaccurate):
+- Headline: "{initial.headline}"
+- Tagline: "{initial.tagline}"
+- What it does: "{initial.what_it_does}"
+- Business value: "{initial.business_value}"
+- Pain point: "{initial.pain_point_addressed}"
+- Raw extracted: "{initial.raw_extracted_text[:500] if initial.raw_extracted_text else 'None'}"
+
+ORIGINAL CONTENT TO RE-ANALYZE:
+{original_content[:6000]}
+
+YOUR TASK: Improve and validate this extraction.
+- If the initial extraction missed key details, add them
+- If the initial extraction was wrong, correct it
+- If the initial extraction was too generic, make it specific
+- Increase confidence score ONLY if you found concrete details
+
+TARGET AUDIENCE: {audience}
+
+Return ONLY valid JSON matching this exact structure:
+{{
+    "raw_extracted_text": "...",
+    "extraction_confidence": 0.9,
+    "headline": "...",
+    "tagline": "...",
+    "what_it_does": "...",
+    "business_value": "...",
+    "who_benefits": "...",
+    "differentiator": "...",
+    "pain_point_addressed": "...",
+    "suggested_icon": "..."
+}}"""
+
+        try:
+            # Route to alternate model based on content type
+            if content_type == "text":
+                # Text was initially processed by DeepSeek, refine with... DeepSeek again (no vision alt for text)
+                # Actually for text, we can try Gemini as alternate
+                self._ensure_client()
+                logger.info(f"[REFINE] Using Gemini as alternate for text refinement")
+                response = self._client.models.generate_content(
+                    model=self.config.gemini_vision_model,
+                    contents=refinement_prompt,
+                )
+                response_text = response.text
+            else:
+                # Image was initially processed by Qwen, refine with DeepSeek for reasoning
+                logger.info(f"[REFINE] Using DeepSeek as alternate for image refinement (reasoning pass)")
+                response_text = await self._call_deepseek(refinement_prompt)
+
+            # Parse refined result
+            refined = _safe_parse_understanding(response_text, source="refinement")
+
+            # Only use refinement if it actually improved confidence
+            if refined.extraction_confidence > initial.extraction_confidence:
+                logger.info(f"[REFINE] Improved: {initial.extraction_confidence:.2f} → {refined.extraction_confidence:.2f}")
+                return refined
+            else:
+                logger.info(f"[REFINE] No improvement ({refined.extraction_confidence:.2f}), keeping initial")
+                return initial
+
+        except Exception as e:
+            logger.warning(f"[REFINE] Refinement failed ({e}), keeping initial extraction")
+            return initial
 
     async def understand_code(
         self,
@@ -500,7 +618,16 @@ Return ONLY valid JSON matching this exact structure:
                 json_str = json_str.strip()
 
             data = json.loads(json_str)
-            return StoryboardUnderstanding(**data)
+            initial_result = StoryboardUnderstanding(**data)
+
+            # Stage 2 (REFINE): If low confidence, run through alternate model
+            refined_result = await self._refine_extraction(
+                initial=initial_result,
+                original_content=code_content,
+                content_type="text",
+                audience=audience,
+            )
+            return refined_result
 
         except json.JSONDecodeError as e:
             logger.error(f"[UNDERSTAND] Failed to parse response: {e}")
@@ -653,10 +780,18 @@ Return ONLY valid JSON matching this exact structure:
                 response_text = response.text
 
             # Parse JSON response with safe fallback
-            result = _safe_parse_understanding(response_text, source="transcript")
-            if result.extraction_confidence > 0:
+            initial_result = _safe_parse_understanding(response_text, source="transcript")
+            if initial_result.extraction_confidence > 0:
                 logger.info(f"[UNDERSTAND] Successfully extracted insights from transcript for {audience}")
-            return result
+
+            # Stage 2 (REFINE): If low confidence, run through alternate model
+            refined_result = await self._refine_extraction(
+                initial=initial_result,
+                original_content=transcript,
+                content_type="text",
+                audience=audience,
+            )
+            return refined_result
 
         except Exception as e:
             logger.error(f"[GEMINI] Transcript understanding failed: {e}")
@@ -831,10 +966,19 @@ Return ONLY valid JSON matching this exact structure:
                 response_text = response.text
 
             # Parse JSON response with safe fallback
-            result = _safe_parse_understanding(response_text, source="image")
-            if result.extraction_confidence > 0:
+            initial_result = _safe_parse_understanding(response_text, source="image")
+            if initial_result.extraction_confidence > 0:
                 logger.info(f"[UNDERSTAND] Successfully extracted insights from image")
-            return result
+
+            # Stage 2 (REFINE): If low confidence, run through DeepSeek for reasoning pass
+            # For images, we pass the raw_extracted_text as context since we can't re-send the image
+            refined_result = await self._refine_extraction(
+                initial=initial_result,
+                original_content=f"[IMAGE DESCRIPTION FROM QWEN VL]\n{initial_result.raw_extracted_text}",
+                content_type="image",
+                audience=audience,
+            )
+            return refined_result
 
         except Exception as e:
             logger.error(f"[GEMINI] Image understanding failed: {e}")
@@ -983,10 +1127,18 @@ Return ONLY valid JSON matching this exact structure:
                 response_text = response.text
 
             # Parse JSON response with safe fallback
-            result = _safe_parse_understanding(response_text, source="multi-image")
-            if result.extraction_confidence > 0:
+            initial_result = _safe_parse_understanding(response_text, source="multi-image")
+            if initial_result.extraction_confidence > 0:
                 logger.info(f"[GEMINI] Successfully understood {len(images_data)} images together")
-            return result
+
+            # Stage 2 (REFINE): If low confidence, run through DeepSeek for reasoning pass
+            refined_result = await self._refine_extraction(
+                initial=initial_result,
+                original_content=f"[MULTI-IMAGE DESCRIPTION FROM QWEN VL]\n{initial_result.raw_extracted_text}",
+                content_type="image",
+                audience=audience,
+            )
+            return refined_result
 
         except Exception as e:
             logger.error(f"[GEMINI] Multi-image understanding failed: {e}")
@@ -1137,18 +1289,7 @@ ALWAYS derive messaging from the specific content that was extracted.
 If the headline says "EXTRACTION FAILED", display an error state instead.
 
 TARGET AUDIENCE: {persona.get('title', 'Business Professional')}
-TONE: {persona.get('tone', 'Professional and friendly')}
-VALUE ANGLE: {persona.get('value_angle', 'ROI')}
-VALUE FRAMING: {persona.get('value_framing', 'Show the business impact')}"""
-
-            # Add value angle guidance based on persona
-            value_angle = persona.get('value_angle', 'ROI')
-            if value_angle == 'COI':
-                content_section += "\n\nFocus on COST OF INACTION: What are they LOSING every day by not acting? Loss aversion hits harder than gain."
-            elif value_angle == 'EASE':
-                content_section += "\n\nFocus on EASE: Just make their day easier. No budget talk, no ROI math. Simple = better."
-            else:  # ROI
-                content_section += "\n\nFocus on ROI: Show the math, the payback, the return. Numbers justify the decision."
+TONE: {persona.get('tone', 'Professional and friendly')}"""
 
         # Use dynamic tagline from understanding (falls back to brand tagline if not set)
         dynamic_tagline = understanding.tagline if understanding.tagline else brand['tagline']
