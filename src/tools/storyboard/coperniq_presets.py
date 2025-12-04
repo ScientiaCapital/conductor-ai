@@ -14,6 +14,70 @@ from typing import Any
 from enum import Enum
 
 
+# =============================================
+# Coperniq Brand Identity (Scraped 2025-12-04)
+# =============================================
+
+COPERNIQ_BRAND = {
+    "company": "Coperniq",
+    "tagline": "One platform to run every trade: build, dispatch, service",
+    "website": "https://coperniq.io",
+
+    # Visual Identity
+    "colors": {
+        "primary": "#1a1a2e",       # Dark navy (headers, text)
+        "accent": "#F47E42",         # Burnt orange (CTAs, highlights)
+        "background": "#FFFFFF",     # White
+        "text": "#333333",           # Dark gray
+        "light_gray": "#f8f9fa",     # Backgrounds
+    },
+    "typography": {
+        "primary": "Albert Sans",
+        "weights": [400, 500, 600],
+        "style": "Clean, geometric sans-serif",
+    },
+    "visual_aesthetic": "Modern, professional, enterprise. Minimal grid patterns, photography-heavy with field workers. Corporate but approachable.",
+
+    # Key Headlines from Landing Pages
+    "headlines": [
+        "Built for Complex Operations. Designed for $5M+ Contractors",
+        "Quote, Book, Pay, Dispatch, and Grow",
+        "One platform for your entire operation",
+        "AI for the Trades—Not just call answering",
+        "Construction CRM that runs the work — not just the contacts",
+        "Plan the job, schedule the crews, collect the cash",
+    ],
+
+    # Proven Results (for storyboards)
+    "proof_points": {
+        "completion_rate": "99% first-time completion rate",
+        "time_to_completion": "45 days faster to project completion",
+        "payment_speed": "65% faster payment collection",
+        "cost_savings": "$3,000 soft-cost savings per install",
+        "dso_improvement": "24/7 faster DSO (cash collection)",
+        "scale_story": "Scaled from 20 to 100+ installs/month without adding staff",
+    },
+
+    # AI Capabilities (for VC/innovation focus)
+    "ai_features": [
+        "AI Receptionist - Answers calls, books work orders 24/7",
+        "Smart Forms - Converts paper inspections to digital via AI",
+        "Nameplate Scanning - Capture make, model, serial in one shot",
+        "Project Copilot - Ask questions within job records",
+        "Ask AI Views - Describe data slice you want to see",
+        "Quote Generation - Good/better/best options auto-generated",
+    ],
+
+    # Product Categories
+    "feature_categories": {
+        "sales": ["CRM", "Quotes/Proposals", "E-signatures", "Lead conversion"],
+        "operations": ["Field service", "Dispatch", "Scheduling", "Mobile app (offline)"],
+        "admin": ["Document management", "Payment processing", "Accounting sync"],
+        "integrations": ["QuickBooks", "Xero", "NetSuite", "Design tools", "Hardware APIs"],
+    },
+}
+
+
 class AudiencePersona(str, Enum):
     """Target audience personas for storyboard content."""
 
@@ -83,36 +147,64 @@ COPERNIQ_ICP = {
             ],
         },
         AudiencePersona.TOP_TIER_VC: {
-            "title": "Top Tier VC Partner (Sequoia, a16z, Founders Fund)",
-            "cares_about": ["TAM/SAM/SOM", "unique value proposition", "defensible moat", "10x better", "founder-market fit"],
-            "tone": "Crisp, insight-dense, pattern-matching focused",
+            "title": "Top Tier VC / Angel / PE Investor",
+            "cares_about": ["TAM/SAM/SOM", "traction metrics", "defensible moat", "unit economics", "team"],
+            "tone": "Data-driven, confident, investment-thesis focused. NO customer CTAs.",
             "hooks": [
-                "Why now? The market timing is perfect",
-                "This is 10x better than the status quo",
-                "Built by founders who lived this problem",
-                "Clear path to category leadership",
+                "$200B+ market, fragmented incumbents, perfect timing",
+                "Category-defining platform for contractor operations",
+                "Vertical AI that compounds with data network effects",
             ],
-            "uvp_focus": {
-                "must_answer": [
-                    "What unique insight does this team have?",
-                    "Why will this be a $1B+ outcome?",
-                    "What makes this defensible long-term?",
-                    "Why can't incumbents just copy this?",
-                ],
-                "metrics_that_matter": [
-                    "Net Revenue Retention (NRR)",
-                    "CAC payback period",
-                    "Logo retention",
-                    "Expansion revenue %",
-                    "Gross margin trajectory",
-                ],
-                "signals_of_quality": [
-                    "Organic growth / word of mouth",
-                    "Customer pull (not push)",
-                    "Short sales cycles",
-                    "High NPS / customer love",
-                ],
+            # CRITICAL: VC storyboard structure (NOT customer demo)
+            "storyboard_structure": {
+                "section_1_problem": {
+                    "header": "THE PROBLEM",
+                    "format": "$X billion lost annually to [specific pain]. X% of contractors still use [outdated method].",
+                    "example": "$47B lost annually to operational inefficiency. 73% of contractors still run on spreadsheets.",
+                },
+                "section_2_solution": {
+                    "header": "THE SOLUTION",
+                    "format": "One-sentence UVP. What we do differently.",
+                    "example": "One platform that runs the entire contracting operation: quote → dispatch → pay.",
+                },
+                "section_3_traction": {
+                    "header": "TRACTION",
+                    "format": "ARR, growth rate, customer count, key metric",
+                    "example": "$X ARR | X% MoM growth | X customers | 99% retention",
+                    "note": "Use Coperniq proof points if real metrics unavailable",
+                },
+                "section_4_market": {
+                    "header": "MARKET",
+                    "format": "TAM → SAM → SOM with clear logic",
+                    "example": "$200B TAM (all contractor software) → $40B SAM (MEP+Energy) → $2B SOM (mid-market)",
+                },
+                "section_5_why_now": {
+                    "header": "WHY NOW",
+                    "format": "Market shift enabling this opportunity",
+                    "example": "AI inflection + workforce shortage + regulatory pressure = perfect storm",
+                },
+                "section_6_moat": {
+                    "header": "DEFENSIBILITY",
+                    "format": "What compounds over time",
+                    "example": "Data network effects: every job makes the AI smarter for every customer",
+                },
             },
+            "avoid_in_vc_storyboard": [
+                "Book a demo",
+                "Get started",
+                "Contact sales",
+                "Free trial",
+                "See pricing",
+                "Customer testimonials",  # Use metrics instead
+            ],
+            "metrics_that_matter": [
+                "ARR / MRR",
+                "Growth rate (MoM/YoY)",
+                "Net Revenue Retention (NRR)",
+                "CAC payback period",
+                "Gross margin",
+                "Logo retention",
+            ],
         },
         AudiencePersona.FIELD_CREW: {
             "title": "Field Crew / Technicians / Blue Collar Workers",
@@ -219,10 +311,13 @@ COPERNIQ_ICP = {
         ],
     },
     "visual_style": {
-        "colors": ["#1E40AF", "#3B82F6", "#FFFFFF", "#1F2937"],  # Professional blue/white
-        "icons": "Simple, construction-related metaphors",
-        "layout": "Clean, scannable, executive-friendly",
-        "font_style": "Large, readable, no fine print feel",
+        "colors": ["#1a1a2e", "#F47E42", "#FFFFFF", "#333333"],  # Coperniq: dark navy, burnt orange, white
+        "primary_color": "#1a1a2e",  # Dark navy for headers
+        "accent_color": "#F47E42",   # Burnt orange for CTAs/highlights
+        "icons": "Simple, construction-related metaphors (tools, buildings, workers)",
+        "layout": "Clean, scannable, executive-friendly. Grid patterns in backgrounds.",
+        "font_style": "Albert Sans or similar. Large, readable, no fine print feel.",
+        "aesthetic": "Modern, professional, enterprise. Corporate but approachable.",
     },
 }
 

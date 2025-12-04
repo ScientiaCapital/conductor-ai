@@ -355,11 +355,12 @@ class UnifiedStoryboardTool(BaseTool):
                 )
 
             # Stage 2: Generate storyboard
-            logger.info("Stage 2: Generating storyboard...")
+            logger.info(f"Stage 2: Generating storyboard for audience={audience}...")
             png_bytes = await self.gemini_client.generate_storyboard(
                 understanding=understanding,
                 icp_preset=icp,
                 stage=stage,
+                audience=audience,
             )
 
             # Save and optionally open in browser

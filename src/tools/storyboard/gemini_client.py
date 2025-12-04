@@ -323,6 +323,7 @@ Return ONLY valid JSON matching this exact structure:
         self,
         understanding: StoryboardUnderstanding,
         stage: str = "preview",
+        audience: str = "c_suite",
         icp_preset: dict[str, Any] | None = None,
         custom_style: dict[str, Any] | None = None,
     ) -> bytes:
@@ -335,6 +336,7 @@ Return ONLY valid JSON matching this exact structure:
         Args:
             understanding: StoryboardUnderstanding from Stage 1
             stage: "preview", "demo", or "shipped" (affects visual style)
+            audience: Target audience (top_tier_vc uses different structure)
             icp_preset: Optional ICP preset for visual style
             custom_style: Optional custom style overrides
 
@@ -343,7 +345,12 @@ Return ONLY valid JSON matching this exact structure:
         """
         self._ensure_client()
 
-        from src.tools.storyboard.coperniq_presets import COPERNIQ_ICP, get_stage_template
+        from src.tools.storyboard.coperniq_presets import (
+            COPERNIQ_ICP,
+            COPERNIQ_BRAND,
+            get_stage_template,
+            get_audience_persona,
+        )
 
         if icp_preset is None:
             icp_preset = COPERNIQ_ICP
@@ -353,16 +360,36 @@ Return ONLY valid JSON matching this exact structure:
 
         stage_template = get_stage_template(stage)
         visual_style = icp_preset.get("visual_style", {})
+        brand = COPERNIQ_BRAND
+        persona = get_audience_persona(audience, icp_preset)
 
         # Add uniqueness to avoid cached/repetitive outputs
         unique_seed = f"{datetime.now().isoformat()}-{uuid.uuid4().hex[:8]}"
 
-        # Build the image generation prompt
-        prompt = f"""Create a UNIQUE professional one-page executive storyboard infographic.
+        # Build audience-specific content structure
+        if audience == "top_tier_vc":
+            # VC/Investor storyboard - use investment thesis structure
+            vc_structure = persona.get("storyboard_structure", {})
+            proof = brand.get("proof_points", {})
 
-GENERATION SEED: {unique_seed} (use this to create variation in layout and icons)
+            content_section = f"""CONTENT TO DISPLAY (VC/INVESTOR PITCH - NOT A CUSTOMER DEMO):
+- HEADLINE: "{understanding.headline}"
 
-CONTENT TO DISPLAY:
+SECTIONS (LEFT TO RIGHT FLOW):
+1. THE PROBLEM: "{understanding.pain_point_addressed}"
+2. THE SOLUTION: "{understanding.what_it_does}"
+3. TRACTION: Use these proof points: {proof.get('completion_rate', '99% completion')} | {proof.get('payment_speed', '65% faster payments')} | {proof.get('scale_story', 'scaled 5x without adding staff')}
+4. MARKET: $200B TAM → $40B SAM (MEP+Energy contractors) → $2B SOM
+5. WHY NOW: AI inflection + workforce shortage + regulatory pressure
+6. MOAT: "{understanding.differentiator}"
+
+CRITICAL: NO "Book a demo" or customer CTAs. This is for INVESTORS.
+- Use metrics and numbers prominently
+- Show market opportunity, not product features
+- Confidence and data, not sales pitch"""
+        else:
+            # Customer-focused storyboard (sales, internal, field crew)
+            content_section = f"""CONTENT TO DISPLAY:
 - Badge: "{stage_template['badge']}"
 - Headline: "{understanding.headline}"
 - Description: "{understanding.what_it_does}"
@@ -372,21 +399,36 @@ CONTENT TO DISPLAY:
 - Problem Solved: "{understanding.pain_point_addressed}"
 - Call to Action: "{stage_template['cta']}"
 
+TARGET AUDIENCE: {persona.get('title', 'Business Professional')}
+TONE: {persona.get('tone', 'Professional and friendly')}"""
+
+        # Build the image generation prompt
+        prompt = f"""Create a UNIQUE professional one-page executive storyboard infographic.
+
+GENERATION SEED: {unique_seed} (use this to create variation in layout and icons)
+
+BRAND: {brand['company']} - "{brand['tagline']}"
+
+{content_section}
+
 VISUAL REQUIREMENTS:
-- Style: {stage_template['visual_style']}
-- Color scheme: Professional blue and white ({', '.join(visual_style.get('colors', ['#1E40AF', '#FFFFFF']))})
+- Style: {stage_template.get('visual_style', 'Modern professional')}
+- Color scheme: {brand['company']} brand colors
+  - Primary (headers/text): {visual_style.get('primary_color', '#1a1a2e')} (dark navy)
+  - Accent (highlights/CTAs): {visual_style.get('accent_color', '#F47E42')} (burnt orange)
+  - Background: white with subtle grid pattern
 - Layout: Clean HORIZONTAL infographic with clear visual hierarchy
-- Include a simple icon representing: {understanding.suggested_icon}
+- Include simple icons representing the content (construction/business metaphors)
 - Large, readable text (executive-friendly)
 - Visual flow from LEFT TO RIGHT (landscape reading)
-- Include subtle badge/ribbon showing "{stage_template['badge']}"
+- Subtle badge/ribbon showing "{stage_template['badge']}" in top corner
 
 DESIGN PRINCIPLES:
-- Professional but approachable (not corporate-stuffy)
-- Clean white space
-- Icons should be simple and metaphorical
-- No stock photo feel
-- Ready to share in presentations, emails, or Slack
+- {visual_style.get('aesthetic', 'Modern, professional, enterprise. Corporate but approachable.')}
+- Clean white space with subtle grid backgrounds
+- Icons should be simple and metaphorical (tools, buildings, charts)
+- No stock photo feel - clean vector/icon style
+- Ready to share in presentations, emails, LinkedIn, or Slack
 - Should look great on screens (16:9 displays)
 
 OUTPUT:
