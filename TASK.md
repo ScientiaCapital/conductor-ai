@@ -1,11 +1,19 @@
 # TASK.md - Conductor-AI
 
 **Project**: conductor-ai
-**Last Updated**: 2025-12-04 (EOD)
+**Last Updated**: 2025-12-04 (Late EOD - Post Rollback)
 
 ---
 
 ## Current Status
+
+**Phase 7.7: Persona Differentiation - STABLE (Rolled Back)**
+
+⚠️ **ROLLBACK NOTE**: Phase 7.8 attempted but broke Vercel deployment.
+- Rolled back to Phase 7.7 working state
+- Root cause: `storyboard_config.py` import failed on Vercel
+- Local tests passed but serverless function crashed
+- Need to re-attempt with proper Vercel testing before deployment
 
 **Phase 7.6: Intelligent Model Routing - COMPLETE**
 
