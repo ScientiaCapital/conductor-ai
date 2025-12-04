@@ -269,6 +269,19 @@ COPERNIQ_ICP = {
             "synergy",
             "paradigm",
             "holistic",
+            # Internal marketing/sales language (NEVER use for external content)
+            "marketing campaign",
+            "marketing strategy",
+            "brand awareness",
+            "promotional",
+            "advertising",
+            "drive engagement",
+            "target audience",
+            "buyer persona",
+            "customer journey",
+            "content marketing",
+            "lead generation campaign",
+            "go-to-market",
             # NOTE: These are OK and should NOT be avoided:
             # - "AI" (we have Receptionist AI, AI features)
             # - "competitive advantage" (valid business language)

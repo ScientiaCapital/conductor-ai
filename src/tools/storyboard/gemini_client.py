@@ -646,7 +646,7 @@ Return ONLY valid JSON matching this exact structure:
         audience_info = icp_preset.get("audience_personas", {}).get(audience, {})
 
         # FULL EXTRACTION - Pull EVERYTHING from the image
-        # Marketing transformation happens in generate_storyboard(), not here
+        # Professional language transformation happens in generate_storyboard(), not here
         extraction_rules = """
 EXTRACTION RULES - Pull EVERYTHING from the image (THIS IS CRITICAL):
 - EXTRACT every feature name, product area, and label visible
@@ -657,7 +657,7 @@ EXTRACTION RULES - Pull EVERYTHING from the image (THIS IS CRITICAL):
 - For Miro boards: extract workflow steps, connections, labels
 - For diagrams: capture all boxes, arrows, connections
 
-The GENERATION phase will transform this into marketing-safe output.
+The GENERATION phase will transform this into professional, external-ready output.
 EXTRACT FULLY NOW - sanitization happens later.
 """
 
@@ -786,7 +786,7 @@ Return ONLY valid JSON matching this exact structure:
         audience_info = icp_preset.get("audience_personas", {}).get(audience, {})
 
         # FULL EXTRACTION - Pull EVERYTHING from ALL images
-        # Marketing transformation happens in generate_storyboard(), not here
+        # Professional language transformation happens in generate_storyboard(), not here
         extraction_rules = """
 EXTRACTION RULES - Pull EVERYTHING from ALL images (THIS IS CRITICAL):
 - EXTRACT every feature name, product area, and label visible in EACH image
@@ -798,7 +798,7 @@ EXTRACTION RULES - Pull EVERYTHING from ALL images (THIS IS CRITICAL):
 - For diagrams: capture all boxes, arrows, connections
 
 EXTRACT FROM EACH IMAGE SEPARATELY FIRST, then synthesize.
-The GENERATION phase will transform this into marketing-safe output.
+The GENERATION phase will transform this into professional, external-ready output.
 """
 
         prompt = f"""Analyze these {len(images_data)} images and EXTRACT ALL CONTENT from each one.
@@ -1006,18 +1006,25 @@ Extraction Confidence: {understanding.extraction_confidence}
 
 {raw_context}
 
-MARKETING TRANSFORMATION (CRITICAL):
-Transform the extracted specifics into LinkedIn-ready marketing language:
+PROFESSIONAL LANGUAGE (CRITICAL):
+Write in clear, direct business language - NOT marketing-speak:
 - Feature names are OK to use (e.g., "Receptionist AI", "Document Engine", "Partner Portal")
-- Transform technical details → business benefits
+- Transform technical details → business outcomes
 - Remove internal codes, version numbers (BETA, V1 → just the feature name)
-- Keep it SPECIFIC to what was extracted, NOT generic contractor messaging
+- Keep it SPECIFIC to what was extracted, NOT generic messaging
 
-Example transforms:
-- "Receptionist AI BETA Q1" → "AI That Answers Your Calls 24/7"
-- "Document Engine V1" → "Contracts That Sign Themselves"
-- "Partner Portal V1" → "Your Partners, One Portal Away"
-- "$3K lost per job" → "Stop Losing $3K Per Job"
+FORBIDDEN LANGUAGE (NEVER USE):
+- "marketing campaign", "marketing strategy", "brand awareness"
+- "promotional", "advertising", "drive engagement"
+- "target audience", "buyer persona", "customer journey"
+- "content marketing", "lead generation campaigns"
+- Any internal marketing/sales team language
+
+USE INSTEAD:
+- Direct product benefits ("AI answers calls 24/7")
+- Specific outcomes ("Save 5 hours/week", "Get paid 65% faster")
+- Feature names ("Receptionist AI", "Document Engine")
+- Customer pain points solved ("No more missed calls")
 
 NEVER output generic copy like "Transform How You Work" or "Save time and money"
 ALWAYS derive messaging from the specific content that was extracted.
