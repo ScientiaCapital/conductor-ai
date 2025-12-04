@@ -7,13 +7,77 @@
 
 ---
 
-## Current Status (2025-12-04) - EOD UPDATE
+## Current Status (2025-12-04)
 
-### Today's Work Summary (22 commits)
+### Phase 7: Coperniq Knowledge Brain - IN PROGRESS
+**Branch**: `main`
+**Tests**: 43 new tests (knowledge module)
+
+Building an intelligent learning system that ingests from multiple sources and updates storyboard generation dynamically.
+
+✅ **Knowledge Base Schema** (`sql/004_coperniq_knowledge.sql`)
+- `knowledge_sources` - Track ingestion sources (Close CRM, Loom, Miro, Code)
+- `coperniq_knowledge` - Core knowledge entries (features, pain points, metrics, quotes)
+- `knowledge_tags` - Flexible tagging system
+- `knowledge_extraction_logs` - Audit trail
+- Full-text search with `search_knowledge()` function
+- Pre-seeded with 22 banned terms + 6 approved terms
+
+✅ **Knowledge Module** (`src/knowledge/`)
+| Component | Purpose |
+|-----------|---------|
+| `base.py` | Core types: `KnowledgeSource`, `KnowledgeEntry`, `KnowledgeType` |
+| `extraction.py` | LLM extraction using DeepSeek V3.2 |
+| `close_crm.py` | Close CRM ingestion (calls + notes) |
+| `service.py` | Main orchestrator with query methods |
+
+✅ **Knowledge CLI** (`knowledge_cli.py`)
+```bash
+# Ingest from Close CRM (last 7 days)
+python knowledge_cli.py close --days 7
+
+# Ingest a Loom transcript
+python knowledge_cli.py loom --url "https://loom.com/share/abc" --transcript-file transcript.txt
+
+# Ingest a Miro board screenshot
+python knowledge_cli.py miro --image /path/to/screenshot.png
+
+# Ingest code file
+python knowledge_cli.py code --file /path/to/feature.py
+
+# Search knowledge base
+python knowledge_cli.py search "scheduling pain points"
+
+# Show stats
+python knowledge_cli.py stats
+```
+
+**Architecture:**
+```
+INGEST → EXTRACT (LLM) → STORE (Supabase)
+- Close CRM calls/notes → Pain points, metrics, quotes
+- Loom transcripts → Feature mentions, use cases
+- Miro screenshots → Roadmap features, product areas
+- Engineer code → Feature names, capabilities
+```
+
+**Knowledge Types Extracted:**
+- `pain_point` - Customer frustrations ("PM lives in Excel")
+- `metric` - Specific numbers ("$3K/job", "5 hours/week")
+- `quote` - Verbatim customer quotes
+- `feature` - Product features (Receptionist AI, Document Engine)
+- `approved_term` - Language that resonates
+- `banned_term` - Language to avoid
+- `objection` - Sales objections
+- `competitor` - Competitor mentions
+- `use_case` - Specific use cases
+- `success_story` - Customer wins
+
+### Today's Work Summary
 - **Content Extraction Fix**: Two-phase architecture (EXTRACT → MARKETING TRANSFORM)
 - **Multi-model routing**: DeepSeek V3.2 for text, Qwen 2.5 VL for images, Gemini for generation
 - **Verification fields**: `raw_extracted_text` + `extraction_confidence` for CEO/CTO review
-- **22 commits today**: Artist styles, multi-image support, 16:9 format, strict accuracy, brand data
+- **Knowledge Brain**: Learning pipeline from Close CRM, Loom, Miro, Code
 
 ### Key Architectural Decision (2025-12-04)
 **Problem**: Over-aggressive IP sanitization killed content specificity
@@ -218,6 +282,15 @@ curl http://localhost:8000/storyboard/jobs/{job_id} \
 - Run in Supabase SQL Editor to create:
   - `storyboard_jobs` - Job state persistence with RLS
 
+**File**: `sql/004_coperniq_knowledge.sql` (NEW)
+- Run in Supabase SQL Editor to create:
+  - `knowledge_sources` - Ingestion source tracking
+  - `coperniq_knowledge` - Knowledge entries with full-text search
+  - `knowledge_tags` - Flexible tagging
+  - `knowledge_extraction_logs` - Extraction audit trail
+  - Views: `active_knowledge`, `pain_points_for_storyboards`, `approved_terms`, `banned_terms`
+  - Functions: `search_knowledge()`, `get_knowledge_for_storyboard()`
+
 ---
 
 ## SDK Quick Start
@@ -323,6 +396,11 @@ conductor-ai/
 │   │   ├── sql_query.py        # Supabase queries
 │   │   ├── video/              # Video prospecting tools (7 tools, 3.5k LOC)
 │   │   └── storyboard/         # Storyboard tools (3 tools, 202 tests)
+│   ├── knowledge/              # Knowledge Brain (NEW)
+│   │   ├── base.py             # Core types: KnowledgeSource, KnowledgeEntry
+│   │   ├── extraction.py       # LLM extraction via DeepSeek V3.2
+│   │   ├── close_crm.py        # Close CRM ingestion
+│   │   └── service.py          # Main orchestrator + queries
 │   ├── agents/                 # Agent system
 │   │   ├── schemas.py          # AgentSession, AgentStep, etc.
 │   │   ├── state.py            # Redis + Supabase state manager
@@ -331,12 +409,19 @@ conductor-ai/
 │   └── api.py                  # FastAPI endpoints
 ├── plugins/                    # Plugin directory (auto-discovered)
 │   └── example_plugin/         # Example plugin template
+├── sql/
+│   ├── 001_audit_and_leads.sql
+│   ├── 002_storyboard_jobs.sql
+│   └── 004_coperniq_knowledge.sql  # Knowledge Brain schema (NEW)
 ├── tests/
 │   ├── sdk/                    # SDK tests (59 tests)
-│   └── tools/                  # Tool tests
+│   ├── tools/                  # Tool tests
+│   └── knowledge/              # Knowledge tests (43 tests) (NEW)
+├── knowledge_cli.py            # Knowledge ingestion CLI (NEW)
+├── demo_cli.py                 # Storyboard demo CLI
 ├── pyproject.toml              # Package config with SDK extras
 ├── .claude/
-│   └── commands/               # Pipeline commands (NEW)
+│   └── commands/               # Pipeline commands
 │       ├── pipeline-feature.md # 6-phase feature development workflow
 │       └── pipeline-eod.md     # End of day audit/sync workflow
 └── docker-compose.yml          # Redis + API services
@@ -398,7 +483,8 @@ SUPABASE_URL=https://xxx.supabase.co
 SUPABASE_SERVICE_KEY=eyJ...
 
 # Optional
-GOOGLE_API_KEY=...              # For Gemini
+GOOGLE_API_KEY=...              # For Gemini storyboard generation
+CLOSE_API_KEY=...               # For Close CRM knowledge ingestion (NEW)
 APP_ENV=development
 ```
 
