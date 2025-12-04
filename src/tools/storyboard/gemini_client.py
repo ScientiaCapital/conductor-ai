@@ -367,10 +367,10 @@ CONTENT TO DISPLAY:
 VISUAL REQUIREMENTS:
 - Style: {stage_template['visual_style']}
 - Color scheme: Professional blue and white ({', '.join(visual_style.get('colors', ['#1E40AF', '#FFFFFF']))})
-- Layout: Clean infographic with clear visual hierarchy
+- Layout: Clean HORIZONTAL infographic with clear visual hierarchy
 - Include a simple icon representing: {understanding.suggested_icon}
 - Large, readable text (executive-friendly)
-- Visual flow from top to bottom
+- Visual flow from LEFT TO RIGHT (landscape reading)
 - Include subtle badge/ribbon showing "{stage_template['badge']}"
 
 DESIGN PRINCIPLES:
@@ -378,12 +378,12 @@ DESIGN PRINCIPLES:
 - Clean white space
 - Icons should be simple and metaphorical
 - No stock photo feel
-- Ready to attach to a professional email
-- Should look great printed or on screen
+- Ready to share in presentations, emails, or Slack
+- Should look great on screens (16:9 displays)
 
 OUTPUT:
-- Single image, portrait orientation (like a one-pager)
-- Resolution suitable for email attachment
+- Single image, LANDSCAPE 16:9 aspect ratio (widescreen horizontal)
+- 1920x1080 resolution (HD widescreen)
 - PNG format"""
 
         try:
