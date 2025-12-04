@@ -118,7 +118,9 @@ class GenerateRequest(BaseModel):
         "preview",
         description="Storyboard stage for BDR cadence",
     )
-    audience: Literal["business_owner", "c_suite", "btl_champion", "top_tier_vc", "field_crew"] = Field(
+    audience: Literal[
+        "business_owner", "c_suite", "btl_champion", "top_tier_vc", "field_crew"
+    ] = Field(
         "c_suite",
         description="Target audience persona",
     )
@@ -320,13 +322,15 @@ async def generate_storyboard(request: GenerateRequest) -> GenerateResponse:
 
     # Run UnifiedStoryboardTool
     tool = UnifiedStoryboardTool()
-    result = await tool.run({
-        "input": input_value,
-        "icp_preset": request.icp_preset,
-        "stage": request.stage,
-        "audience": request.audience,
-        "open_browser": False,  # Server-side - don't open browser
-    })
+    result = await tool.run(
+        {
+            "input": input_value,
+            "icp_preset": request.icp_preset,
+            "stage": request.stage,
+            "audience": request.audience,
+            "open_browser": False,  # Server-side - don't open browser
+        }
+    )
 
     if result.success:
         return GenerateResponse(

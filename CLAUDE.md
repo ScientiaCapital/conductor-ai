@@ -7,7 +7,7 @@
 
 ---
 
-## Current Status (2025-12-03)
+## Current Status (2025-12-04)
 
 ### Phase 1: SDK Foundation - COMPLETE
 **Branch**: `main`
@@ -93,11 +93,42 @@ result = await scheduler.run({
 | `coperniq_presets` | ICP-optimized presets for MEP+energy contractors |
 
 **Features:**
-- Gemini 2.0 Flash Vision + Image Generation (NO OpenAI)
+- Gemini 2.0 Flash Vision + Gemini 3 Pro Image Preview (NO OpenAI)
 - Automatic IP sanitization (strips code internals, API keys, secrets)
 - Three stages: preview, demo, shipped
-- Three audiences: business_owner, c_suite, btl_champion
+- **Five audiences**: business_owner, c_suite, btl_champion, **top_tier_vc**, **field_crew**
 - Target: MEP+energy contractors ($5M+ ICP)
+
+### Phase 6: Storyboard Demo App - COMPLETE (2025-12-04)
+**Branch**: `main`
+**Tests**: 18 new tests (demo router)
+
+✅ **Demo Application** (`src/demo/`, `static/`, `demo_cli.py`)
+| Component | Description |
+|-----------|-------------|
+| `src/demo/router.py` | FastAPI endpoints: `/demo/examples`, `/demo/generate` |
+| `demo_cli.py` | CLI script with 10 example commands |
+| `static/demo.html` | Web UI with drag/drop, paste (Cmd+V), file browse |
+| `vercel.json` | Deployment config for Vercel |
+
+**New Audiences Added:**
+- `top_tier_vc` - VC pitch focus (UVP, moat, 10x better, TAM/SAM/SOM)
+- `field_crew` - Simple infographics for blue collar workers (5th grade vocabulary)
+
+**Usage:**
+```bash
+# CLI - Generate storyboard from project code
+python demo_cli.py --example video_script_generator --audience field_crew --stage demo
+
+# Web UI - Local
+uvicorn src.api:app --reload
+# Open http://localhost:8000
+
+# Web UI - Production
+# https://conductor-ai.vercel.app (requires GOOGLE_API_KEY in Vercel env)
+```
+
+**Deployment:** Vercel project `conductor-ai` under `scientia-capital`
 - **Auto-opens result in default browser**
 
 **Usage:**

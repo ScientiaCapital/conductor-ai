@@ -1,7 +1,7 @@
 # BACKLOG.md - Project Task Board
 
 **Project**: Conductor-AI - Multi-Model AI Agent Platform with SDK
-**Last Updated**: 2025-12-02
+**Last Updated**: 2025-12-04
 **Sprint**: Current
 
 ---
@@ -10,10 +10,10 @@
 
 | Status | Count |
 |--------|-------|
-| 🔴 Blocked | 2 |
-| 🟡 In Progress | 0 |
-| 🟢 Ready | 1 |
-| ✅ Done (this sprint) | 9 |
+| 🔴 Blocked | 1 |
+| 🟡 In Progress | 1 |
+| 🟢 Ready | 0 |
+| ✅ Done (this sprint) | 10 |
 
 ---
 
@@ -22,30 +22,33 @@
 ### 🔴 Blocked
 <!-- Tasks waiting on external dependencies or decisions -->
 
-#### 1. [MEDIUM] SQL Migration for Observability Layer
-- **ID**: TASK-001
+#### 1. [HIGH] Add GOOGLE_API_KEY to Vercel + Local .env
+- **ID**: TASK-025
 - **Assignee**: User
-- **Labels**: `database`, `migration`, `user-action`
-- **Est. Time**: 15 minutes
+- **Labels**: `deployment`, `config`, `user-action`
+- **Est. Time**: 5 minutes
 - **Dependencies**: None
 
-**Description**: Run SQL migration file `sql/001_audit_and_leads.sql` in Supabase SQL Editor to create required tables for observability layer.
+**Description**: Add GOOGLE_API_KEY to both local `.env` and Vercel environment variables to enable storyboard generation.
 
-**Blocker**: Requires user to manually run migration in Supabase dashboard.
+**Blocker**: Key is empty in local `.env` and missing from Vercel.
 
-**Tables to Create**:
-- `audit_logs` - Tool execution audit trail
-- `tool_executions` - Detailed I/O records
-- `leads` - Shared lead storage
+**Steps**:
+1. Get key from: https://aistudio.google.com/app/apikey
+2. Add to local `.env`: `GOOGLE_API_KEY=AIza...`
+3. Add to Vercel: `vercel env add GOOGLE_API_KEY production`
+4. Redeploy: `vercel --prod`
 
 **Acceptance Criteria**:
-- [ ] SQL migration executed in Supabase
-- [ ] Tables created and accessible
-- [ ] RLS policies applied
+- [ ] Key added to local .env
+- [ ] Key added to Vercel
+- [ ] Demo generates storyboards successfully
 
 ---
 
-#### 2. [MEDIUM] SQL Migration for Storyboard Jobs
+### 🟡 In Progress
+
+#### 2. [MEDIUM] SQL Migration for Storyboard Jobs (COMPLETED 2025-12-04)
 - **ID**: TASK-020
 - **Assignee**: User
 - **Labels**: `database`, `migration`, `user-action`

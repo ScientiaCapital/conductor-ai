@@ -10,7 +10,6 @@ import argparse
 import asyncio
 import sys
 from pathlib import Path
-from typing import Optional
 
 # Example files mapping
 EXAMPLES = {
@@ -123,7 +122,9 @@ def print_results(result: dict, open_browser: bool):
     print(f"  📌 Headline: {understanding.get('headline', 'N/A')}")
     print(f"  💰 Business Value: {understanding.get('business_value', 'N/A')}")
     print(f"  🎯 Key Features: {', '.join(understanding.get('key_features', []))}")
-    print(f"  🚀 Technical Complexity: {understanding.get('technical_complexity', 'N/A')}")
+    print(
+        f"  🚀 Technical Complexity: {understanding.get('technical_complexity', 'N/A')}"
+    )
     print()
 
     # Print file info
@@ -167,23 +168,27 @@ Examples:
     # Input source (mutually exclusive)
     input_group = parser.add_mutually_exclusive_group(required=True)
     input_group.add_argument(
-        "-l", "--list-examples",
+        "-l",
+        "--list-examples",
         action="store_true",
         help="List available built-in examples",
     )
     input_group.add_argument(
-        "-e", "--example",
+        "-e",
+        "--example",
         metavar="NAME",
         choices=list(EXAMPLES.keys()),
         help="Generate from built-in example",
     )
     input_group.add_argument(
-        "-i", "--image",
+        "-i",
+        "--image",
         metavar="PATH",
         help="Generate from image file (PNG, JPG)",
     )
     input_group.add_argument(
-        "-c", "--code",
+        "-c",
+        "--code",
         metavar="PATH",
         help="Generate from code file (use '-' for stdin)",
     )
@@ -197,7 +202,13 @@ Examples:
     )
     parser.add_argument(
         "--audience",
-        choices=["business_owner", "c_suite", "btl_champion", "top_tier_vc", "field_crew"],
+        choices=[
+            "business_owner",
+            "c_suite",
+            "btl_champion",
+            "top_tier_vc",
+            "field_crew",
+        ],
         default="c_suite",
         help="Target audience: c_suite, business_owner, btl_champion, top_tier_vc, or field_crew (simple infographics)",
     )
