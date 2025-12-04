@@ -78,6 +78,7 @@ def _build_language_guidelines(self, icp_preset: dict, audience: str) -> str:
     # Get static defaults
     avoid = icp_preset.get("language_style", {}).get("avoid", [])
     use = icp_preset.get("language_style", {}).get("use", [])
+    tone = icp_preset.get("tone", "Friendly and professional")
 
     # Merge with dynamic knowledge
     from src.knowledge.cache import KnowledgeCache
