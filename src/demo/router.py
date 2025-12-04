@@ -99,29 +99,31 @@ class ExampleCodeResponse(BaseModel):
 class GenerateRequest(BaseModel):
     """Request for POST /demo/generate."""
 
-    input_type: Literal["image", "code"] = Field(
-        ..., description="Type of input: 'image' or 'code'"
+    # input_type is now optional - auto-inferred from provided fields
+    input_type: Literal["image", "code"] | None = Field(
+        None,
+        description="Type of input: 'image' or 'code'. Auto-inferred if not provided.",
     )
     image_base64: str | None = Field(
         None,
-        description="Base64-encoded image (with or without data URL prefix). Required if input_type='image'",
+        description="Base64-encoded image (with or without data URL prefix).",
     )
     code: str | None = Field(
         None,
-        description="Raw code string. Required if input_type='code'",
+        description="Raw code string.",
     )
     icp_preset: str = Field(
         "coperniq_mep",
         description="ICP preset to use",
     )
     stage: Literal["preview", "demo", "shipped"] = Field(
-        "preview",
+        "demo",
         description="Storyboard stage for BDR cadence",
     )
     audience: Literal[
         "business_owner", "c_suite", "btl_champion", "top_tier_vc", "field_crew"
     ] = Field(
-        "c_suite",
+        "field_crew",
         description="Target audience persona",
     )
 
@@ -287,38 +289,34 @@ async def generate_storyboard(request: GenerateRequest) -> GenerateResponse:
         400: Invalid input (missing required fields).
         422: Validation error.
     """
-    # Validate input
-    if request.input_type == "image":
-        if request.image_base64 is None:
+    # Auto-infer input_type if not provided
+    input_type = request.input_type
+    if input_type is None:
+        if request.image_base64 and request.image_base64.strip():
+            input_type = "image"
+        elif request.code and request.code.strip():
+            input_type = "code"
+        else:
             raise HTTPException(
                 status_code=400,
-                detail="image_base64 is required when input_type='image'",
+                detail="Either 'image_base64' or 'code' must be provided",
+            )
+
+    # Validate input based on type
+    if input_type == "image":
+        if not request.image_base64 or not request.image_base64.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="image_base64 cannot be empty when input_type='image'",
             )
         input_value = request.image_base64
-        # Validate not empty (check for empty string)
-        if not input_value or not input_value.strip():
+    else:  # input_type == "code"
+        if not request.code or not request.code.strip():
             raise HTTPException(
                 status_code=400,
-                detail="image input cannot be empty",
-            )
-    elif request.input_type == "code":
-        if request.code is None:
-            raise HTTPException(
-                status_code=400,
-                detail="code is required when input_type='code'",
+                detail="code cannot be empty when input_type='code'",
             )
         input_value = request.code
-        # Validate not empty (check for empty string)
-        if not input_value or not input_value.strip():
-            raise HTTPException(
-                status_code=400,
-                detail="code input cannot be empty",
-            )
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid input_type: {request.input_type}",
-        )
 
     # Run UnifiedStoryboardTool
     tool = UnifiedStoryboardTool()
@@ -337,7 +335,7 @@ async def generate_storyboard(request: GenerateRequest) -> GenerateResponse:
             success=True,
             storyboard_png=result.result.get("storyboard_png"),
             understanding=result.result.get("understanding"),
-            input_type=result.result.get("input_type", request.input_type),
+            input_type=result.result.get("input_type", input_type),
             stage=request.stage,
             audience=request.audience,
             icp_preset=request.icp_preset,
@@ -346,7 +344,7 @@ async def generate_storyboard(request: GenerateRequest) -> GenerateResponse:
     else:
         return GenerateResponse(
             success=False,
-            input_type=request.input_type,
+            input_type=input_type,
             stage=request.stage,
             audience=request.audience,
             icp_preset=request.icp_preset,
