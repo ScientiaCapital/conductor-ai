@@ -1111,6 +1111,20 @@ VISUAL DESIGN FREEDOM:
 - Let icons and visuals communicate - minimize text
 - Trust that executives understand visual hierarchy without explicit labels
 
+INDUSTRY GUARDRAILS (CRITICAL - NEVER VIOLATE):
+- This is for MEP contractors: ELECTRICAL, HVAC, PLUMBING, SOLAR, ENERGY contractors
+- NEVER mention unrelated industries (no beef, no agriculture, no manufacturing, no retail)
+- Icons must be construction/trades relevant: trucks, tools, clipboards, hard hats, wrenches, wire, pipes, solar panels
+- If the input mentions an unrelated industry, IGNORE it and focus on MEP contractor context
+- The target audience runs field service crews, does installations, handles permits, manages subcontractors
+
+PROFESSIONAL QUALITY (LinkedIn-ready):
+- Must look like it came from a top-tier design agency
+- Clean, modern, minimal - no clip art or amateur elements
+- Every pixel must be intentional and polished
+- Text must be 100% legible at thumbnail size
+- Would you put this in front of a $10M contractor? If not, redo it.
+
 NEVER output generic copy. ALWAYS use specifics from the extraction."""
 
         # Use dynamic tagline from understanding (falls back to brand tagline if not set)
@@ -1162,12 +1176,22 @@ DESIGN PRINCIPLES:
 
         try:
             from google.genai import types
+            import random
+
+            # Log key content being sent for debugging
+            logger.info(f"[GEMINI-IMG] Generating image for audience={audience}, seed={unique_seed}")
+            logger.info(f"[GEMINI-IMG] Headline: {understanding.headline}")
+
+            # Use temperature to avoid cached responses
+            temperature = 0.9 + random.uniform(0, 0.1)  # 0.9-1.0
 
             response = self._client.models.generate_content(
                 model=self.config.image_model,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_modalities=["IMAGE", "TEXT"],
+                    temperature=temperature,
+                    seed=random.randint(1, 1000000),  # Random seed for cache busting
                 ),
             )
 

@@ -136,13 +136,13 @@ class GenerateRequest(BaseModel):
         "infographic",
         description="Output format: 'infographic' (horizontal 16:9) or 'storyboard' (vertical 9:16)",
     )
-    visual_style: Literal["clean", "polished", "photo_realistic", "minimalist"] = Field(
+    visual_style: Literal["clean", "polished", "photo_realistic", "minimalist", "isometric", "sketch", "data_viz", "bold"] = Field(
         "polished",
-        description="Visual style: 'clean' (simple icons), 'polished' (professional), 'photo_realistic' (imagery), 'minimalist' (sparse)",
+        description="Visual style: 'clean', 'polished', 'photo_realistic', 'minimalist', 'isometric' (3D Stripe/Linear), 'sketch' (whiteboard), 'data_viz' (charts), 'bold' (Bauhaus)",
     )
     artist_style: str | None = Field(
         None,
-        description="Optional artist style for fun: 'salvador_dali', 'monet', 'diego_rivera', 'warhol', 'van_gogh', 'picasso'",
+        description="Optional artist style: 'salvador_dali', 'monet', 'diego_rivera', 'warhol', 'van_gogh', 'picasso', 'giger' (biomechanical)",
     )
 
 
