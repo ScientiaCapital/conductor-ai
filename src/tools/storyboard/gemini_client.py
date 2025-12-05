@@ -1127,11 +1127,18 @@ PROFESSIONAL QUALITY (LinkedIn-ready):
 
 NEVER output generic copy. ALWAYS use specifics from the extraction."""
 
-        # Use dynamic tagline from understanding (falls back to brand tagline if not set)
-        dynamic_tagline = understanding.tagline if understanding.tagline else brand['tagline']
+        # Use extracted tagline - NEVER fall back to canned brand tagline
+        # If no tagline extracted, use the headline instead (which is always unique to input)
+        dynamic_tagline = understanding.tagline if understanding.tagline else understanding.headline
 
         # Build the image generation prompt
         prompt = f"""Create a UNIQUE professional one-page executive storyboard infographic.
+
+ANTI-CANNED-COPY RULE (CRITICAL):
+- DO NOT use generic marketing phrases like "streamline operations", "get paid faster", "one platform"
+- Every word must come from the EXTRACTED DATA below - nothing else
+- If you find yourself writing generic copy, STOP and use the specific extracted content instead
+- The headline MUST be "{understanding.headline}" - do not change it
 
 GENERATION SEED: {unique_seed} (use this to create variation in layout and icons)
 
