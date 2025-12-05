@@ -13,7 +13,8 @@ import logging
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from src.tools.storyboard.unified_storyboard import UnifiedStoryboardTool
@@ -294,7 +295,7 @@ async def get_example_code(name: str) -> ExampleCodeResponse:
     },
     summary="Generate storyboard from image or code",
 )
-async def generate_storyboard(request: GenerateRequest) -> GenerateResponse:
+async def generate_storyboard(request: GenerateRequest, response: Response) -> GenerateResponse:
     """
     Generate executive storyboard PNG from image or code.
 
@@ -306,6 +307,7 @@ async def generate_storyboard(request: GenerateRequest) -> GenerateResponse:
 
     Args:
         request: Generation request with input_type and corresponding data.
+        response: FastAPI Response object for setting headers.
 
     Returns:
         Generated storyboard as base64 PNG with extracted business insights.
@@ -314,6 +316,11 @@ async def generate_storyboard(request: GenerateRequest) -> GenerateResponse:
         400: Invalid input (missing required fields).
         422: Validation error.
     """
+    # Prevent caching - each request must generate fresh content
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+
     # Handle multiple images (up to 3)
     images_list: list[str] = []
     image_count = 0

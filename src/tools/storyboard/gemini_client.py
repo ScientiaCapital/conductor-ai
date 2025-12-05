@@ -522,7 +522,13 @@ Return ONLY valid JSON matching this exact structure:
         language_guidelines = self._build_language_guidelines_minimal(audience)
         value_angle_instruction = self._get_value_angle_instruction(audience)
 
+        # Cache-busting: unique identifier per request to prevent API caching
+        import uuid
+        from datetime import datetime
+        request_id = f"{datetime.now().isoformat()}-{uuid.uuid4().hex[:8]}"
+
         prompt = f"""Analyze this code and extract business value.
+REQUEST_ID: {request_id}
 
 {f"File: {file_name}" if file_name else ""}
 
@@ -649,7 +655,13 @@ Return JSON:
         # Get value angle for this audience
         value_angle_instruction = self._get_value_angle_instruction(audience)
 
+        # Cache-busting: unique identifier per request to prevent API caching
+        import uuid
+        from datetime import datetime
+        request_id = f"{datetime.now().isoformat()}-{uuid.uuid4().hex[:8]}"
+
         prompt = f"""Extract key insights from this content.
+REQUEST_ID: {request_id}
 
 {f"CONTEXT: {context}" if context else ""}
 
@@ -793,7 +805,13 @@ Return JSON:
         language_guidelines = self._build_language_guidelines_minimal(audience)
         value_angle_instruction = self._get_value_angle_instruction(audience)
 
+        # Cache-busting: unique identifier per request to prevent API caching
+        import uuid
+        from datetime import datetime
+        request_id = f"{datetime.now().isoformat()}-{uuid.uuid4().hex[:8]}"
+
         prompt = f"""Analyze this image and extract ALL content.
+REQUEST_ID: {request_id}
 
 CRITICAL: Extract the ACTUAL content from this image.
 Do NOT generate generic copy. Do NOT make things up.
@@ -904,7 +922,13 @@ Return JSON:
         language_guidelines = self._build_language_guidelines_minimal(audience)
         value_angle_instruction = self._get_value_angle_instruction(audience)
 
+        # Cache-busting: unique identifier per request to prevent API caching
+        import uuid
+        from datetime import datetime
+        request_id = f"{datetime.now().isoformat()}-{uuid.uuid4().hex[:8]}"
+
         prompt = f"""Analyze these {len(images_data)} images and extract ALL content.
+REQUEST_ID: {request_id}
 
 CRITICAL: Extract ACTUAL content from each image.
 Do NOT generate generic copy. Do NOT make things up.
