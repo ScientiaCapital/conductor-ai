@@ -191,29 +191,27 @@ COPERNIQ_ICP = {
         },
         AudiencePersona.BTL_CHAMPION: {
             "title": "Project Manager / Operations Manager",
-            "cares_about": ["easier day-to-day", "looking good to boss", "less fire-fighting"],
+            "cares_about": ["easier day-to-day", "team coordination", "less fire-fighting"],
             "tone": "Empathetic, practical, day-in-the-life focused",
-            # COI: "Your boss will ask why you didn't bring this up sooner"
-            "value_angle": "COI",  # Cost of Inaction - career risk of missing this
-            "value_framing": "Every fire you're fighting today? There's a tool that prevents it. Your boss will wonder why you didn't find it sooner.",
+            "value_angle": "COI",  # Cost of Inaction - the daily cost of not having this
+            "value_framing": "Every fire you're fighting today? There's a tool that prevents it. Finally get ahead instead of always catching up.",
             "hooks": [
                 "Your crews will actually use this",
                 "No more chasing down updates",
-                "Be the hero who fixed the coordination problem",
+                "Finally get the coordination problem under control",
             ],
             # PERSONA POLISH - Voice & Style
-            "voice_tone": "Internal advocate energy. Help them sell it up. Speak to the daily grind.",
+            "voice_tone": "Internal advocate energy. Speak to the daily grind and real frustrations.",
             "vocabulary": [
                 "fires to put out",
                 "chasing updates",
-                "my boss",
-                "look good",
                 "prove it works",
                 "the team will actually use this",
                 "less headaches",
                 "one less thing",
                 "finally under control",
-                "save my sanity",
+                "save time",
+                "reduce frustration",
             ],
             "forbidden_phrases": [
                 "enterprise-grade",
@@ -275,7 +273,7 @@ COPERNIQ_ICP = {
         },
         AudiencePersona.FIELD_CREW: {
             "title": "Field Crew / Technicians / Blue Collar Workers",
-            "cares_about": ["making my job easier", "not looking stupid", "getting home on time", "less paperwork"],
+            "cares_about": ["making my job easier", "clear instructions", "getting home on time", "less paperwork"],
             "tone": "Super simple, friendly, visual-first - explain like I'm 10",
             # EASE: They don't control the budget - just show it makes life easier
             "value_angle": "EASE",  # Not ROI or COI - just "this makes your day better"
@@ -284,7 +282,7 @@ COPERNIQ_ICP = {
                 "This makes your job way easier",
                 "No more paperwork headaches",
                 "Works even when you don't have signal",
-                "Your boss will think you're a genius",
+                "Everything in one place",
             ],
             "infographic_style": {
                 "design": "Simple icons, big text, minimal words",

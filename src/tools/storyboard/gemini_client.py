@@ -751,9 +751,9 @@ Return JSON:
 
             "btl_champion": """FOCUS FOR OPERATIONS/PROJECT MANAGER:
 - What DAILY FRUSTRATIONS would be eliminated?
-- What would make them LOOK GOOD to leadership?
 - What COORDINATION problems were mentioned?
-- What would their TEAM actually use?""",
+- What would their TEAM actually use?
+- How does this reduce fire-fighting and chaos?""",
 
             "top_tier_vc": """FOCUS FOR VC/INVESTOR:
 - What MARKET SIZE indicators were mentioned?
@@ -1360,20 +1360,20 @@ EMOTIONAL CORE: Validation through data. Strategic advantage. Looking smart to t
 """,
             "btl_champion": """VALUE FRAMING: COI (Cost of Inaction) - AMPLIFIED
 
-HELP THEM SELL IT UP:
-- Your boss will ask why you didn't bring this up sooner
+THE DAILY REALITY:
 - Every fire you're fighting today? There's a tool that prevents it
-- Be the hero who fixed the coordination problem
+- Finally get the coordination problem under control
+- Stop chasing updates and start getting ahead
 
 VOCABULARY THAT RESONATES:
-- "fires to put out", "chasing updates", "my boss"
-- "look good", "prove it works", "the team will actually use this"
-- "less headaches", "one less thing", "finally under control"
+- "fires to put out", "chasing updates", "prove it works"
+- "the team will actually use this", "less headaches"
+- "one less thing", "finally under control", "save time"
 
 FORBIDDEN (sounds like enterprise sales):
 - "enterprise-grade", "holistic solution", "comprehensive platform"
 
-EMOTIONAL CORE: Career risk of missing this. Internal advocate energy. Daily grind empathy.
+EMOTIONAL CORE: Daily grind empathy. Practical solutions for real frustrations.
 """,
             "top_tier_vc": """VALUE FRAMING: ROI (Return on Investment) - AMPLIFIED
 
@@ -1408,7 +1408,7 @@ FORBIDDEN (sounds like office people):
 - "optimize", "leverage", "utilize", "streamline"
 - "stakeholder", "implementation", "enterprise", "scalable"
 
-EMOTIONAL CORE: Make my day easier. Don't make me look stupid. Let me get home on time.
+EMOTIONAL CORE: Make my day easier. Keep it simple. Let me get home on time.
 """,
         }
         return value_angles.get(audience, value_angles["c_suite"])
@@ -1502,7 +1502,7 @@ NEVER USE: {', '.join(forbidden[:5])}"""
             return f"""FOR: {title}
 VOICE: {voice_tone}
 THEY CARE ABOUT: {', '.join(cares_about)}
-VALUE ANGLE: COI - career risk of missing this, look good to boss
+VALUE ANGLE: COI - the daily cost of not having this, reduce frustration
 VISUAL STYLE: {default_style} (professional infographic, shareable internally)
 DESIGN APPROACH: Day-in-life scenarios, practical benefits, before/after comparison
 USE THESE WORDS: {', '.join(vocabulary[:5])}
