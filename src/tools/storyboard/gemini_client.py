@@ -1447,84 +1447,74 @@ EMOTIONAL CORE: Make my day easier. Keep it simple. Let me get home on time.
         """
         Build persona-specific context for image generation.
 
-        Uses the rich persona data from presets to guide Nano Banana's
-        creative output - making each persona feel distinct.
+        CRITICAL: Only provides high-level GUIDANCE, not literal content.
+        - Value angle (COI/ROI/EASE) tells HOW to frame
+        - Visual style tells WHAT to design
+        - Forbidden phrases are guardrails only
+        - NO vocabulary or cares_about - these caused literal rendering
+
+        The EXTRACTION phase already outputs persona-appropriate content.
+        This method just guides the VISUAL treatment.
         """
-        value_angle = persona.get("value_angle", "ROI")
-        # NOTE: value_framing intentionally NOT used - we want visual-first output from extracted content
-        cares_about = persona.get("cares_about", [])
-        hooks = persona.get("hooks", [])
         title = persona.get("title", audience)
-        tone = persona.get("tone", "Professional")
         voice_tone = persona.get("voice_tone", "")
-        vocabulary = persona.get("vocabulary", [])
         forbidden = persona.get("forbidden_phrases", [])
         default_style = persona.get("default_visual_style", "polished")
 
-        # Field Crew: Special handling with simplified design
+        # Field Crew: Super simple, 5th grade vocabulary
         if audience == "field_crew":
             style = persona.get("infographic_style", {})
+            language_rules = style.get('language_rules', ['Use 5th grade vocabulary'])[:3]
             return f"""FOR: {title}
 VOICE: {voice_tone}
-THEY CARE ABOUT: {', '.join(cares_about)}
-VALUE ANGLE: EASE - make their job easier, no ROI/savings talk
+VALUE ANGLE: EASE - show how this makes the job easier (no ROI/savings talk)
 VISUAL STYLE: {default_style} (hand-drawn, approachable, no corporate feel)
-DESIGN APPROACH: {style.get('design', 'Simple icons, big text, minimal words')}
-LANGUAGE RULES:
-{chr(10).join('- ' + r for r in style.get('language_rules', ['Use 5th grade vocabulary'])[:3])}
-USE THESE WORDS: {', '.join(vocabulary[:5])}
-NEVER USE: {', '.join(forbidden[:5])}"""
+DESIGN: {style.get('design', 'Simple icons, big text, minimal words')}
+LANGUAGE: {'; '.join(language_rules)}
+AVOID WORDS: {', '.join(forbidden[:5])}"""
 
-        # C-Suite: Numbers and data focus
+        # C-Suite: Data and numbers focus
         if audience == "c_suite":
             return f"""FOR: {title}
 VOICE: {voice_tone}
-THEY CARE ABOUT: {', '.join(cares_about)}
-VALUE ANGLE: ROI - show the math, the metrics, the return
+VALUE ANGLE: ROI - show the math, metrics, and return on investment
 VISUAL STYLE: {default_style} (charts, graphs, numbers prominent)
-DESIGN APPROACH: Clean data visualization, McKinsey/BCG aesthetic, executive summary
-USE THESE WORDS: {', '.join(vocabulary[:5])}
-NEVER USE: {', '.join(forbidden[:5])}"""
+DESIGN: Clean data visualization, McKinsey/BCG aesthetic, executive summary format
+AVOID WORDS: {', '.join(forbidden[:5])}"""
 
-        # Business Owner: Emotional, pain→solution
+        # Business Owner: Emotional pain→solution story
         if audience == "business_owner":
             return f"""FOR: {title}
 VOICE: {voice_tone}
-THEY CARE ABOUT: {', '.join(cares_about)}
-VALUE ANGLE: COI (Cost of Inaction) - what they LOSE by not acting
+VALUE ANGLE: COI (Cost of Inaction) - emphasize what they LOSE by not acting
 VISUAL STYLE: {default_style} (modern SaaS, Stripe/Linear quality)
-DESIGN APPROACH: Emotional hook, show the pain → solution story, relatable founder energy
-USE THESE WORDS: {', '.join(vocabulary[:5])}
-NEVER USE: {', '.join(forbidden[:5])}"""
+DESIGN: Emotional hook, pain → solution narrative, relatable founder energy
+AVOID WORDS: {', '.join(forbidden[:5])}"""
 
-        # BTL Champion: Day-in-life practical
+        # BTL Champion: Day-in-life practical benefits
         if audience == "btl_champion":
             return f"""FOR: {title}
 VOICE: {voice_tone}
-THEY CARE ABOUT: {', '.join(cares_about)}
-VALUE ANGLE: COI - the daily cost of not having this, reduce frustration
+VALUE ANGLE: COI - the daily cost of not having this, reduce daily frustration
 VISUAL STYLE: {default_style} (professional infographic, shareable internally)
-DESIGN APPROACH: Day-in-life scenarios, practical benefits, before/after comparison
-USE THESE WORDS: {', '.join(vocabulary[:5])}
-NEVER USE: {', '.join(forbidden[:5])}"""
+DESIGN: Day-in-life scenarios, practical benefits, before/after comparison
+AVOID WORDS: {', '.join(forbidden[:5])}"""
 
-        # VC/Investor: Investment thesis
+        # VC/Investor: Investment thesis format
         if audience == "top_tier_vc":
             return f"""FOR: {title}
 VOICE: {voice_tone}
-THEY CARE ABOUT: {', '.join(cares_about)}
 VALUE ANGLE: ROI - market opportunity, defensibility, return profile
 VISUAL STYLE: {default_style} (bold, memorable pitch deck slide)
-DESIGN APPROACH: Investment thesis format, show the moat, prove the momentum
-USE THESE WORDS: {', '.join(vocabulary[:5])}
-NEVER USE: {', '.join(forbidden[:5])}
-AVOID: Book a demo, contact sales, free trial, marketing buzzwords"""
+DESIGN: Investment thesis format, show the moat, prove momentum with data
+AVOID WORDS: {', '.join(forbidden[:5])}, book a demo, contact sales, free trial"""
 
         # Default fallback
         return f"""FOR: {title}
-THEY CARE ABOUT: {', '.join(cares_about) if cares_about else 'results, efficiency'}
-VALUE ANGLE: {value_angle}
-TONE: {tone}"""
+VOICE: {voice_tone}
+VALUE ANGLE: Show clear business value
+VISUAL STYLE: {default_style}
+DESIGN: Professional and polished"""
 
     def _get_format_layout_instructions(self, output_format: str) -> str:
         """Get layout instructions based on output format."""
