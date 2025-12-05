@@ -9,9 +9,17 @@
 
 ## Current Status (2025-12-04)
 
-### Phase 7.7: Persona Differentiation with COI/ROI/EASE - COMPLETE
+### Phase 7.9: Persona Resonance Polish + Bug Fixes - COMPLETE
 **Branch**: `main`
 **Tests**: 260 storyboard+knowledge tests
+
+Critical bug fixes for storyboard reliability:
+- **Text input priority**: Text/code now takes precedence over images (was ignoring Gong transcripts)
+- **Cache-busting**: REQUEST_ID added to all extraction prompts to prevent API caching
+- **No canned speech**: Never fall back to brand tagline, use extracted content only
+- **Industry guardrails**: NEVER mention unrelated industries (beef, agriculture), stick to MEP contractors
+
+### Phase 7.7: Persona Differentiation with COI/ROI/EASE - COMPLETE
 
 Each persona now gets distinctly different output through value angle framing.
 

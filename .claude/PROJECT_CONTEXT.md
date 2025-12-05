@@ -1,26 +1,25 @@
 # conductor-ai
 
-**Branch**: main | **Updated**: 2025-12-04 (EOD)
+**Branch**: main | **Updated**: 2025-12-04 (Late EOD)
 
 ## Status
-Phase 7.7 complete: Persona Differentiation with COI/ROI/EASE value angles. Each audience (Business Owner, C-Suite, BTL Champion, VC, Field Crew) now produces distinctly different output through value angle framing at both extraction and generation phases.
+Phase 7.9 complete: Persona Resonance Polish + critical bug fixes. Storyboard generation now properly uses text input (Gong transcripts) and busts API caching. All 8 commits today focused on improving storyboard reliability and persona differentiation.
 
 ## Today's Focus (Next Session)
-1. [ ] Test persona differentiation with real transcripts/images
-2. [ ] Demo to CEO/CTO for feedback on persona outputs
-3. [ ] Consider Phase 8: Output format variations (infographic vs storyboard aspect ratios)
-4. [ ] Loom transcript ingestion (~20-25 videos manual export)
+1. [ ] Test with Solar Hut Gong transcript - verify text is properly extracted
+2. [ ] Verify Vercel deployment is using fresh context (no caching)
+3. [ ] Demo to CEO/CTO for feedback on persona outputs
+4. [ ] Consider Phase 8: Output format variations
 
-## Done (This Session - Late 2025-12-04)
-- Phase 7.7: Persona Differentiation COMPLETE
-- Added `_build_persona_generation_context()` - rich persona data injection
-- Added `_get_value_angle_instruction()` - COI/ROI/EASE framing per audience
-- Updated all `understand_*` methods with value angle awareness
-- Fixed "Not mentioned in transcript" - must now INFER
-- Fixed personal names in output - generalize to roles/personas
-- Deleted unused `src/tools/scientia/` module (1264 lines cleanup)
-- 260 storyboard+knowledge tests passing
-- 2 commits pushed: feat(storyboard) + docs(EOD)
+## Done (This Session - 2025-12-04)
+- **Phase 7.9: Persona Resonance Polish** - Visual styles (isometric, sketch, data_viz, bold), artist style (giger)
+- **fix(demo): Prioritize text input over images** - Text/code now wins when both provided (was ignoring Gong transcripts!)
+- **fix(storyboard): Add cache-busting to extraction phase** - REQUEST_ID + no-cache headers prevent API caching
+- **fix(storyboard): Remove canned speech fallback** - Never fall back to brand tagline
+- **fix(storyboard): Add industry guardrails** - NEVER mention beef/agriculture, stick to MEP contractors
+- **fix(storyboard): Visual-first output** - Removed rigid header constraints, trust Nano Banana
+- **Rolled back Phase 7.8** - Config extraction approach was overcomplicating things
+- 8 commits pushed to main, all deployed to Vercel
 
 ## Value Angle System
 | Audience | Value Angle | Framing |
@@ -37,27 +36,34 @@ Phase 7.7 complete: Persona Differentiation with COI/ROI/EASE value angles. Each
 - All code changes require tests
 - **NEVER** output "Not mentioned in transcript" - must INFER
 - **NEVER** use personal names - generalize to roles/personas
+- **Text input takes priority over images** (fixed today)
 
 ## Blockers
-None - git clean, all tests passing
+None - git clean, all tests passing, Vercel deployed
 
 ## Quick Commands
 ```bash
-python3 -m pytest tests/tools/storyboard/ tests/knowledge/ -v  # Core tests (260)
+python3 -m pytest tests/tools/storyboard/ tests/knowledge/ -v  # Core tests
 python demo_cli.py --example video_script_generator --audience field_crew
-uvicorn src.api:app --reload               # Start local server
-open http://localhost:8000                 # Demo UI
+uvicorn src.api:app --reload --port 8001   # Start local server
+open http://localhost:8001                  # Demo UI (local)
+open https://conductor-ai.vercel.app        # Demo UI (production)
 ```
 
 ## Tech Stack
 Python 3.13 | FastAPI | Supabase | Redis | Gemini 3 Pro (Nano Banana) | DeepSeek V3 | Qwen 2.5 VL 72B
 
 ## Key Files for Tomorrow
-- `src/tools/storyboard/gemini_client.py` - Line 1303: `_build_persona_generation_context()`, Line 1225: `_get_value_angle_instruction()`
-- Test with different audience values to verify distinct outputs
+- `src/demo/router.py` - Line 343: Text now prioritized over images
+- `src/tools/storyboard/gemini_client.py` - Line 525+: Cache-busting REQUEST_ID in all understand_* methods
+- Test with Gong transcripts pasted into text box
 
-## Recent Commits
-- c5dbc4b docs: EOD update - Phase 7.7 Persona Differentiation complete
-- 2479049 feat(storyboard): Phase 2 - Persona differentiation with COI/ROI/EASE framing
-- 9892b1f docs: EOD update - Phase 7.6 Intelligent Model Routing complete
-- 0e58f8e fix(storyboard): Use DeepSeek V3 (fast) instead of R1 (slow reasoning)
+## Recent Commits (Today)
+- 3c64919 fix(demo): Prioritize text input over images
+- 80c5dad fix(storyboard): Add cache-busting to extraction phase
+- a45ce9a fix(storyboard): Remove canned speech fallback
+- cc36b38 fix(storyboard): Add industry guardrails and cache-busting
+- 7f1cc32 feat(storyboard): Persona Resonance Polish - Phase 7.9
+- 4695e28 feat(storyboard): Visual-first output
+- eba1cf9 docs: EOD update - Phase 7.8 rollback documented
+- fe605e2 revert: Roll back to Phase 7.7 working state

@@ -1428,7 +1428,7 @@ EMOTIONAL CORE: Make my day easier. Don't make me look stupid. Let me get home o
         creative output - making each persona feel distinct.
         """
         value_angle = persona.get("value_angle", "ROI")
-        value_framing = persona.get("value_framing", "")
+        # NOTE: value_framing intentionally NOT used - we want visual-first output from extracted content
         cares_about = persona.get("cares_about", [])
         hooks = persona.get("hooks", [])
         title = persona.get("title", audience)
@@ -1450,8 +1450,7 @@ DESIGN APPROACH: {style.get('design', 'Simple icons, big text, minimal words')}
 LANGUAGE RULES:
 {chr(10).join('- ' + r for r in style.get('language_rules', ['Use 5th grade vocabulary'])[:3])}
 USE THESE WORDS: {', '.join(vocabulary[:5])}
-NEVER USE: {', '.join(forbidden[:5])}
-FRAMING: {value_framing}"""
+NEVER USE: {', '.join(forbidden[:5])}"""
 
         # C-Suite: Numbers and data focus
         if audience == "c_suite":
@@ -1462,9 +1461,7 @@ VALUE ANGLE: ROI - show the math, the metrics, the return
 VISUAL STYLE: {default_style} (charts, graphs, numbers prominent)
 DESIGN APPROACH: Clean data visualization, McKinsey/BCG aesthetic, executive summary
 USE THESE WORDS: {', '.join(vocabulary[:5])}
-NEVER USE: {', '.join(forbidden[:5])}
-FRAMING: {value_framing}
-HOOKS THAT RESONATE: {'; '.join(hooks[:2])}"""
+NEVER USE: {', '.join(forbidden[:5])}"""
 
         # Business Owner: Emotional, pain→solution
         if audience == "business_owner":
@@ -1475,9 +1472,7 @@ VALUE ANGLE: COI (Cost of Inaction) - what they LOSE by not acting
 VISUAL STYLE: {default_style} (modern SaaS, Stripe/Linear quality)
 DESIGN APPROACH: Emotional hook, show the pain → solution story, relatable founder energy
 USE THESE WORDS: {', '.join(vocabulary[:5])}
-NEVER USE: {', '.join(forbidden[:5])}
-FRAMING: {value_framing}
-HOOKS THAT RESONATE: {'; '.join(hooks[:2])}"""
+NEVER USE: {', '.join(forbidden[:5])}"""
 
         # BTL Champion: Day-in-life practical
         if audience == "btl_champion":
@@ -1488,9 +1483,7 @@ VALUE ANGLE: COI - career risk of missing this, look good to boss
 VISUAL STYLE: {default_style} (professional infographic, shareable internally)
 DESIGN APPROACH: Day-in-life scenarios, practical benefits, before/after comparison
 USE THESE WORDS: {', '.join(vocabulary[:5])}
-NEVER USE: {', '.join(forbidden[:5])}
-FRAMING: {value_framing}
-HOOKS THAT RESONATE: {'; '.join(hooks[:2])}"""
+NEVER USE: {', '.join(forbidden[:5])}"""
 
         # VC/Investor: Investment thesis
         if audience == "top_tier_vc":
@@ -1502,14 +1495,12 @@ VISUAL STYLE: {default_style} (bold, memorable pitch deck slide)
 DESIGN APPROACH: Investment thesis format, show the moat, prove the momentum
 USE THESE WORDS: {', '.join(vocabulary[:5])}
 NEVER USE: {', '.join(forbidden[:5])}
-FRAMING: {value_framing}
 AVOID: Book a demo, contact sales, free trial, marketing buzzwords"""
 
         # Default fallback
         return f"""AUDIENCE: {title}
 THEY CARE ABOUT: {', '.join(cares_about) if cares_about else 'results, efficiency'}
 VALUE ANGLE: {value_angle}
-FRAMING: {value_framing}
 TONE: {tone}"""
 
     def _get_format_layout_instructions(self, output_format: str) -> str:
