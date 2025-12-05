@@ -7,7 +7,22 @@
 
 ---
 
-## Current Status (2025-12-04)
+## Current Status (2025-12-05)
+
+### Phase 8.0: Mixed Input Parity & Anti-Canned-Copy - COMPLETE
+**Branch**: `main`
+**Tests**: 79 storyboard+demo tests passing
+
+Today's session focused on making mixed input (image + text) truly equal and eliminating Gemini's tendency to generate canned marketing metaphors.
+
+**Key Changes:**
+1. **Text as PRIMARY INPUT #1**: When both image and text are provided, text is now placed FIRST in the prompt and labeled "PRIMARY INPUT #1" with explicit instruction to extract from text first
+2. **Removed brand name from generation**: Changed `BRAND: Coperniq` to `THEME: "{tagline}"` to prevent Gemini from generating "COPERNIQ INTEGRATED SOLUTIONS" headers
+3. **Banned metaphors list**: Added explicit ban on "Frankenstack", "Goldilocks", "daily grind", "fighting fires", "2026 Software"
+4. **Tagline must come from extracted content**: Added rule that subtitle/tagline must derive from actual input, not invented
+
+**Files Modified:**
+- `src/tools/storyboard/gemini_client.py` - Restructured mixed input handling, added banned metaphors
 
 ### Phase 7.9: Persona Resonance Polish + Bug Fixes - COMPLETE
 **Branch**: `main`
