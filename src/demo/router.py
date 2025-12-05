@@ -335,12 +335,16 @@ async def generate_storyboard(request: GenerateRequest, response: Response) -> G
         image_count = 1
 
     # Auto-infer input_type if not provided
+    # PRIORITY: Text/code takes precedence over images (more specific content)
     input_type = request.input_type
+    has_code = request.code and request.code.strip()
+
     if input_type is None:
-        if image_count > 0:
-            input_type = "image"
-        elif request.code and request.code.strip():
+        if has_code:
+            # Text/code always wins when provided - it's more specific
             input_type = "code"
+        elif image_count > 0:
+            input_type = "image"
         else:
             raise HTTPException(
                 status_code=400,
@@ -357,7 +361,7 @@ async def generate_storyboard(request: GenerateRequest, response: Response) -> G
         # For multiple images, pass as list; for single, pass the string
         input_value = images_list if image_count > 1 else images_list[0]
     else:  # input_type == "code"
-        if not request.code or not request.code.strip():
+        if not has_code:
             raise HTTPException(
                 status_code=400,
                 detail="code cannot be empty when input_type='code'",
