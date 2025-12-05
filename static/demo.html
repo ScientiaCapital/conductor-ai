@@ -370,6 +370,48 @@
             display: none;
         }
 
+        /* Icon Chips */
+        .chip-section {
+            margin-bottom: 20px;
+        }
+
+        .chip-label {
+            font-weight: 500;
+            color: #666;
+            margin-bottom: 10px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .chip-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .chip {
+            padding: 10px 16px;
+            border: 2px solid #ddd;
+            border-radius: 24px;
+            background: #fff;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .chip:hover {
+            border-color: #2E5090;
+            background: #f0f4ff;
+        }
+
+        .chip.selected {
+            border-color: #2E5090;
+            background: #2E5090;
+            color: white;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             h1 {
@@ -390,6 +432,11 @@
 
             .btn-primary {
                 min-width: 100%;
+            }
+
+            .chip {
+                padding: 8px 12px;
+                font-size: 0.85rem;
             }
         }
     </style>
@@ -468,55 +515,57 @@ Expected ROI: 2 hours saved per crew per day
                 Options
             </h2>
 
-            <div class="options-grid">
-                <!-- Stage hidden - defaults to demo -->
-                <input type="hidden" id="stageSelect" value="demo">
+            <!-- Stage hidden - defaults to demo -->
+            <input type="hidden" id="stageSelect" value="demo">
 
-                <div class="option-group">
-                    <label for="audienceSelect">Who is this for?</label>
-                    <select id="audienceSelect">
-                        <option value="c_suite" selected>C-Suite (Executive summary)</option>
-                        <option value="business_owner">Business Owner (ROI focus)</option>
-                        <option value="btl_champion">BTL Champion (Operations focus)</option>
-                        <option value="top_tier_vc">Top Tier VC (Investment pitch)</option>
-                        <option value="field_crew">Field Crew (Simple, visual)</option>
-                    </select>
+            <!-- Persona -->
+            <div class="chip-section">
+                <div class="chip-label">PERSONA</div>
+                <div class="chip-group" data-param="audience">
+                    <button type="button" class="chip selected" data-value="c_suite">👔 CEO</button>
+                    <button type="button" class="chip" data-value="business_owner">🏠 Owner</button>
+                    <button type="button" class="chip" data-value="btl_champion">📋 Ops</button>
+                    <button type="button" class="chip" data-value="top_tier_vc">💰 VC</button>
+                    <button type="button" class="chip" data-value="field_crew">🧰 Crew</button>
                 </div>
+            </div>
 
-                <div class="option-group">
-                    <label for="outputFormatSelect">Output Format</label>
-                    <select id="outputFormatSelect">
-                        <option value="infographic" selected>Infographic (Horizontal 16:9)</option>
-                        <option value="storyboard">Storyboard (Vertical 9:16)</option>
-                    </select>
+            <!-- Format -->
+            <div class="chip-section">
+                <div class="chip-label">FORMAT</div>
+                <div class="chip-group" data-param="output_format">
+                    <button type="button" class="chip selected" data-value="infographic">📐 Horizontal</button>
+                    <button type="button" class="chip" data-value="storyboard">📱 Vertical</button>
                 </div>
+            </div>
 
-                <div class="option-group">
-                    <label for="visualStyleSelect">Visual Style</label>
-                    <select id="visualStyleSelect">
-                        <option value="polished" selected>Polished (McKinsey/BCG)</option>
-                        <option value="clean">Clean (Apple keynote)</option>
-                        <option value="photo_realistic">Photo Realistic (LinkedIn)</option>
-                        <option value="minimalist">Minimalist (Sparse)</option>
-                        <option value="isometric">Isometric 3D (Stripe/Linear)</option>
-                        <option value="sketch">Hand-Drawn Sketch (Whiteboard)</option>
-                        <option value="data_viz">Data Visualization (Charts/Numbers)</option>
-                        <option value="bold">Bold Geometric (Bauhaus)</option>
-                    </select>
+            <!-- Visual Style -->
+            <div class="chip-section">
+                <div class="chip-label">STYLE</div>
+                <div class="chip-group" data-param="visual_style">
+                    <button type="button" class="chip selected" data-value="polished">✨ Polished</button>
+                    <button type="button" class="chip" data-value="clean">🍎 Clean</button>
+                    <button type="button" class="chip" data-value="photo_realistic">📷 Photo</button>
+                    <button type="button" class="chip" data-value="minimalist">🔷 Minimal</button>
+                    <button type="button" class="chip" data-value="isometric">🧊 3D</button>
+                    <button type="button" class="chip" data-value="sketch">✏️ Sketch</button>
+                    <button type="button" class="chip" data-value="data_viz">📊 Data</button>
+                    <button type="button" class="chip" data-value="bold">🔶 Bold</button>
                 </div>
+            </div>
 
-                <div class="option-group">
-                    <label for="artistStyleSelect">Artist Style (Fun!)</label>
-                    <select id="artistStyleSelect">
-                        <option value="none" selected>None (Default)</option>
-                        <option value="salvador_dali">Salvador Dali (Surrealist)</option>
-                        <option value="monet">Claude Monet (Impressionist)</option>
-                        <option value="diego_rivera">Diego Rivera (Muralist)</option>
-                        <option value="warhol">Andy Warhol (Pop Art)</option>
-                        <option value="van_gogh">Van Gogh (Post-Impressionist)</option>
-                        <option value="picasso">Picasso (Cubist)</option>
-                        <option value="giger">H.R. Giger (Biomechanical)</option>
-                    </select>
+            <!-- Artist Style -->
+            <div class="chip-section">
+                <div class="chip-label">ARTIST</div>
+                <div class="chip-group" data-param="artist_style">
+                    <button type="button" class="chip selected" data-value="none">🎨 None</button>
+                    <button type="button" class="chip" data-value="salvador_dali">🕐 Dali</button>
+                    <button type="button" class="chip" data-value="monet">🌸 Monet</button>
+                    <button type="button" class="chip" data-value="diego_rivera">🎺 Rivera</button>
+                    <button type="button" class="chip" data-value="warhol">🎯 Warhol</button>
+                    <button type="button" class="chip" data-value="van_gogh">🌻 Van Gogh</button>
+                    <button type="button" class="chip" data-value="picasso">🔺 Picasso</button>
+                    <button type="button" class="chip" data-value="giger">🦾 Giger</button>
                 </div>
             </div>
 
@@ -580,7 +629,28 @@ Expected ROI: 2 hours saved per crew per day
             loadExamples();
             setupDropZone();
             setupPaste();
+            setupChipGroups();
         });
+
+        // Setup chip group click handlers
+        function setupChipGroups() {
+            document.querySelectorAll('.chip-group').forEach(group => {
+                group.querySelectorAll('.chip').forEach(chip => {
+                    chip.addEventListener('click', () => {
+                        // Remove selected from siblings
+                        group.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+                        // Add selected to clicked
+                        chip.classList.add('selected');
+                    });
+                });
+            });
+        }
+
+        // Get chip value helper
+        function getChipValue(param, defaultValue) {
+            const chip = document.querySelector(`.chip-group[data-param="${param}"] .chip.selected`);
+            return chip ? chip.dataset.value : defaultValue;
+        }
 
         // Load examples from API
         async function loadExamples() {
@@ -738,10 +808,10 @@ Expected ROI: 2 hours saved per crew per day
         async function generate() {
             const codeInput = document.getElementById('codeInput').value.trim();
             const stage = document.getElementById('stageSelect').value;
-            const audience = document.getElementById('audienceSelect').value;
-            const outputFormat = document.getElementById('outputFormatSelect').value;
-            const visualStyle = document.getElementById('visualStyleSelect').value;
-            const artistStyle = document.getElementById('artistStyleSelect').value;
+            const audience = getChipValue('audience', 'c_suite');
+            const outputFormat = getChipValue('output_format', 'infographic');
+            const visualStyle = getChipValue('visual_style', 'polished');
+            const artistStyle = getChipValue('artist_style', 'none');
 
             // Validate input - need at least images OR text
             if (imagesBase64.length === 0 && !codeInput) {
