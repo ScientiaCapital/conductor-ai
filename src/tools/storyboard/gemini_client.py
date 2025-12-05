@@ -812,25 +812,30 @@ Return JSON:
         from datetime import datetime
         request_id = f"{datetime.now().isoformat()}-{uuid.uuid4().hex[:8]}"
 
-        # Build text context section - treat as EQUAL to image, not supplementary
+        # Build text context section - TEXT IS A PRIMARY INPUT, NOT SECONDARY
         context_section = ""
-        if supplementary_context and supplementary_context.strip():
-            context_section = f"""
-=== TEXT CONTEXT (EQUALLY IMPORTANT AS IMAGE) ===
-The following text provides crucial context that MUST be synthesized with the image.
-Extract key insights from BOTH sources and combine them into a unified understanding.
-Do NOT prioritize one over the other - both are primary inputs.
+        has_text = supplementary_context and supplementary_context.strip()
+        if has_text:
+            context_section = f"""=== PRIMARY INPUT #1: TEXT TRANSCRIPT ===
+This text is a PRIMARY INPUT with EQUAL weight to the image below.
+Extract insights from THIS TEXT FIRST, then synthesize with the image.
 
 {supplementary_context[:16000]}
-===
+=== END TEXT INPUT ===
+
 """
 
-        prompt = f"""Analyze this image and extract ALL content.
+        # When we have both text and image, start with text context so LLM processes it first
+        prompt = f"""{context_section}{"CRITICAL: You have TWO primary inputs above:" if has_text else ""}
+{"1. TEXT TRANSCRIPT (above) - contains key conversation/description content" if has_text else ""}
+{"2. IMAGE (below) - contains visual/structural information" if has_text else ""}
+{"Extract from BOTH sources and MERGE insights. Neither is more important." if has_text else ""}
+
+{"Analyze BOTH the text above AND this image. Extract ALL content from BOTH sources." if has_text else "Analyze this image and extract ALL content."}
 REQUEST_ID: {request_id}
-{context_section}
-CRITICAL: Extract the ACTUAL content from this image.
+
+{"PRIORITY: The text transcript likely contains the MAIN MESSAGE and TALKING POINTS. The image provides VISUAL CONTEXT. Combine them." if has_text else "CRITICAL: Extract the ACTUAL content from this image."}
 Do NOT generate generic copy. Do NOT make things up.
-{"IMPORTANT: Text context is provided above. You MUST synthesize insights from BOTH the image AND text equally. Neither is more important than the other." if supplementary_context else ""}
 
 TARGET AUDIENCE: {audience}
 
@@ -945,25 +950,30 @@ Return JSON:
         from datetime import datetime
         request_id = f"{datetime.now().isoformat()}-{uuid.uuid4().hex[:8]}"
 
-        # Build text context section - treat as EQUAL to images, not supplementary
+        # Build text context section - TEXT IS A PRIMARY INPUT, NOT SECONDARY
         context_section = ""
-        if supplementary_context and supplementary_context.strip():
-            context_section = f"""
-=== TEXT CONTEXT (EQUALLY IMPORTANT AS IMAGES) ===
-The following text provides crucial context that MUST be synthesized with the images.
-Extract key insights from BOTH sources and combine them into a unified understanding.
-Do NOT prioritize one over the other - both are primary inputs.
+        has_text = supplementary_context and supplementary_context.strip()
+        if has_text:
+            context_section = f"""=== PRIMARY INPUT #1: TEXT TRANSCRIPT ===
+This text is a PRIMARY INPUT with EQUAL weight to the images below.
+Extract insights from THIS TEXT FIRST, then synthesize with the images.
 
 {supplementary_context[:16000]}
-===
+=== END TEXT INPUT ===
+
 """
 
-        prompt = f"""Analyze these {len(images_data)} images and extract ALL content.
+        # When we have both text and images, start with text context so LLM processes it first
+        prompt = f"""{context_section}{"CRITICAL: You have MULTIPLE primary inputs:" if has_text else ""}
+{"1. TEXT TRANSCRIPT (above) - contains key conversation/description content" if has_text else ""}
+{"2. IMAGES (below) - contain visual/structural information" if has_text else ""}
+{"Extract from ALL sources and MERGE insights. Text and images are equally important." if has_text else ""}
+
+{"Analyze BOTH the text above AND these " + str(len(images_data)) + " images. Extract ALL content from ALL sources." if has_text else f"Analyze these {len(images_data)} images and extract ALL content."}
 REQUEST_ID: {request_id}
-{context_section}
-CRITICAL: Extract ACTUAL content from each image.
+
+{"PRIORITY: The text transcript likely contains the MAIN MESSAGE and TALKING POINTS. The images provide VISUAL CONTEXT. Combine them." if has_text else "CRITICAL: Extract ACTUAL content from each image."}
 Do NOT generate generic copy. Do NOT make things up.
-{"IMPORTANT: Text context is provided above. You MUST synthesize insights from BOTH the images AND text equally. Neither is more important than the other." if supplementary_context else ""}
 
 TARGET AUDIENCE: {audience}
 
@@ -1197,13 +1207,13 @@ ANTI-CANNED-COPY RULE (CRITICAL):
 
 GENERATION SEED: {unique_seed} (use this to create variation in layout and icons)
 
-BRAND: {brand['company']} - "{dynamic_tagline}"
+THEME: "{dynamic_tagline}"
 
 {content_section}
 
 VISUAL REQUIREMENTS:
 - Style: {stage_template.get('visual_style', 'Modern professional')}
-- Color scheme: {brand['company']} brand colors (MUST USE THESE EXACT COLORS):
+- Color scheme: Professional teal/green palette (MUST USE THESE EXACT COLORS):
   - Primary (CTAs/headers): {visual_style_config.get('primary_color', '#23433E')} (dark teal/forest green)
   - Accent (highlights/emphasis): {visual_style_config.get('accent_color', '#2D9688')} (teal)
   - Text: {visual_style_config.get('text_color', '#333333')} (dark gray)
