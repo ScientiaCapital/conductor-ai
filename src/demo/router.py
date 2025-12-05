@@ -335,16 +335,22 @@ async def generate_storyboard(request: GenerateRequest, response: Response) -> G
         image_count = 1
 
     # Auto-infer input_type if not provided
-    # PRIORITY: Text/code takes precedence over images (more specific content)
+    # NEW: When BOTH image AND text are provided, use image as primary with text as context
     input_type = request.input_type
     has_code = request.code and request.code.strip()
+    supplementary_context = None  # Text context to combine with image
 
     if input_type is None:
-        if has_code:
-            # Text/code always wins when provided - it's more specific
-            input_type = "code"
+        if image_count > 0 and has_code:
+            # MIXED INPUT: Image + text/code together
+            # Use image as primary, text as supplementary context
+            input_type = "image"
+            supplementary_context = request.code.strip()
+            logger.info(f"[MIXED INPUT] Image ({image_count}) + text context ({len(supplementary_context)} chars)")
         elif image_count > 0:
             input_type = "image"
+        elif has_code:
+            input_type = "code"
         else:
             raise HTTPException(
                 status_code=400,
@@ -379,6 +385,10 @@ async def generate_storyboard(request: GenerateRequest, response: Response) -> G
         "visual_style": request.visual_style,
         "open_browser": False,  # Server-side - don't open browser
     }
+
+    # Add supplementary context if we have mixed input (image + text)
+    if supplementary_context:
+        tool_args["supplementary_context"] = supplementary_context
 
     # Add artist_style if provided
     if request.artist_style:

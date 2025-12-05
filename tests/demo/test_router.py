@@ -202,7 +202,7 @@ def test_generate_requires_image_when_type_image(client):
     )
 
     assert response.status_code == 400
-    assert "image_base64" in response.json()["detail"]
+    assert "image" in response.json()["detail"].lower()
 
 
 def test_generate_requires_code_when_type_code(client):

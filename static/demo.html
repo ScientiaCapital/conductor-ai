@@ -423,6 +423,29 @@
             min-height: 140px;
         }
 
+        /* Options card (top) */
+        .options-card {
+            padding: 20px 30px;
+            margin-bottom: 20px;
+        }
+
+        .options-card .options-grid {
+            margin-top: 0;
+        }
+
+        /* Generate section */
+        .generate-section {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .btn-generate {
+            width: 100%;
+            max-width: 400px;
+            padding: 16px 40px;
+            font-size: 1.1rem;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             h1 {
@@ -458,61 +481,8 @@
             <p class="subtitle">Transform transcripts, code, and screenshots into executive-ready visuals</p>
         </header>
 
-        <!-- Two-column input row -->
-        <div class="input-row">
-            <!-- Image Input Section -->
-            <div class="card">
-                <h2 class="section-title">
-                    <span>📸</span>
-                    Images
-                </h2>
-
-                <div class="drop-zone" id="dropZone">
-                    <div class="drop-zone-content">
-                        <div class="drop-zone-icon">⬆️</div>
-                        <div class="drop-zone-text">Drop up to 3 images</div>
-                        <div class="drop-zone-hint">Miro • Screenshots • Cmd+V</div>
-                    </div>
-                </div>
-
-                <input type="file" id="fileInput" accept="image/*" multiple>
-
-                <div id="imagePreviewContainer" class="image-preview-container hidden">
-                    <div id="imagePreviews" class="image-previews"></div>
-                    <button class="clear-image" onclick="clearAllImages()">Clear</button>
-                </div>
-            </div>
-
-            <!-- Text Input Section -->
-            <div class="card">
-                <h2 class="section-title">
-                    <span>💬</span>
-                    Text / Code
-                </h2>
-
-                <textarea
-                    id="codeInput"
-                    placeholder="Paste transcript, code, or notes...
-
-Example:
-- Pain points from call
-- Feature code snippets
-- Meeting notes"></textarea>
-
-                <!-- Quick Examples -->
-                <div id="examplesSection" class="hidden">
-                    <div class="button-group" id="examplesButtons"></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Options -->
-        <div class="card">
-            <h2 class="section-title">
-                <span>⚙️</span>
-                Options
-            </h2>
-
+        <!-- Options on top -->
+        <div class="card options-card">
             <div class="options-grid">
                 <!-- Stage hidden - defaults to demo -->
                 <input type="hidden" id="stageSelect" value="demo">
@@ -564,12 +534,61 @@ Example:
                     </select>
                 </div>
             </div>
+        </div>
 
-            <div class="button-group">
-                <button class="btn-primary" id="generateBtn" onclick="generate()">
-                    Generate Storyboard
-                </button>
+        <!-- Two-column input row -->
+        <div class="input-row">
+            <!-- Image Input Section -->
+            <div class="card">
+                <h2 class="section-title">
+                    <span>📸</span>
+                    Images
+                </h2>
+
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-zone-content">
+                        <div class="drop-zone-icon">⬆️</div>
+                        <div class="drop-zone-text">Drop up to 3 images</div>
+                        <div class="drop-zone-hint">Miro • Screenshots • Cmd+V</div>
+                    </div>
+                </div>
+
+                <input type="file" id="fileInput" accept="image/*" multiple>
+
+                <div id="imagePreviewContainer" class="image-preview-container hidden">
+                    <div id="imagePreviews" class="image-previews"></div>
+                    <button class="clear-image" onclick="clearAllImages()">Clear</button>
+                </div>
             </div>
+
+            <!-- Text Input Section -->
+            <div class="card">
+                <h2 class="section-title">
+                    <span>💬</span>
+                    Text / Code
+                </h2>
+
+                <textarea
+                    id="codeInput"
+                    placeholder="Paste transcript, code, or notes...
+
+Example:
+- Pain points from call
+- Feature code snippets
+- Meeting notes"></textarea>
+
+                <!-- Quick Examples -->
+                <div id="examplesSection" class="hidden">
+                    <div class="button-group" id="examplesButtons"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Generate button below inputs -->
+        <div class="generate-section">
+            <button class="btn-primary btn-generate" id="generateBtn" onclick="generate()">
+                Generate Storyboard
+            </button>
         </div>
 
         <!-- Loading -->

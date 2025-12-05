@@ -775,6 +775,7 @@ Return JSON:
         icp_preset: dict[str, Any] | None = None,
         audience: str = "c_suite",
         sanitize_ip: bool = True,
+        supplementary_context: str | None = None,
     ) -> StoryboardUnderstanding:
         """
         Stage 1: Analyze image and extract business value.
@@ -787,6 +788,7 @@ Return JSON:
             icp_preset: Optional ICP config (ignored - kept for API compatibility)
             audience: Target audience persona
             sanitize_ip: Whether to apply extra IP sanitization
+            supplementary_context: Optional text context (transcript, notes) to combine with image
 
         Returns:
             StoryboardUnderstanding with extracted insights
@@ -810,11 +812,21 @@ Return JSON:
         from datetime import datetime
         request_id = f"{datetime.now().isoformat()}-{uuid.uuid4().hex[:8]}"
 
+        # Build supplementary context section
+        context_section = ""
+        if supplementary_context and supplementary_context.strip():
+            context_section = f"""
+SUPPLEMENTARY TEXT CONTEXT (combine with image analysis):
+{supplementary_context[:16000]}
+---
+"""
+
         prompt = f"""Analyze this image and extract ALL content.
 REQUEST_ID: {request_id}
-
+{context_section}
 CRITICAL: Extract the ACTUAL content from this image.
 Do NOT generate generic copy. Do NOT make things up.
+{"If supplementary text context is provided, SYNTHESIZE both the image AND text into a unified understanding." if supplementary_context else ""}
 
 TARGET AUDIENCE: {audience}
 
@@ -897,6 +909,7 @@ Return JSON:
         icp_preset: dict[str, Any] | None = None,
         audience: str = "c_suite",
         sanitize_ip: bool = True,
+        supplementary_context: str | None = None,
     ) -> StoryboardUnderstanding:
         """
         Stage 1: Analyze multiple images and extract combined business value.
@@ -909,6 +922,7 @@ Return JSON:
             icp_preset: Optional ICP config (ignored - kept for API compatibility)
             audience: Target audience persona
             sanitize_ip: Whether to apply extra IP sanitization
+            supplementary_context: Optional text context (transcript, notes) to combine with images
 
         Returns:
             StoryboardUnderstanding with combined insights from all images
@@ -927,11 +941,21 @@ Return JSON:
         from datetime import datetime
         request_id = f"{datetime.now().isoformat()}-{uuid.uuid4().hex[:8]}"
 
+        # Build supplementary context section
+        context_section = ""
+        if supplementary_context and supplementary_context.strip():
+            context_section = f"""
+SUPPLEMENTARY TEXT CONTEXT (combine with image analysis):
+{supplementary_context[:16000]}
+---
+"""
+
         prompt = f"""Analyze these {len(images_data)} images and extract ALL content.
 REQUEST_ID: {request_id}
-
+{context_section}
 CRITICAL: Extract ACTUAL content from each image.
 Do NOT generate generic copy. Do NOT make things up.
+{"If supplementary text context is provided, SYNTHESIZE both the images AND text into a unified understanding." if supplementary_context else ""}
 
 TARGET AUDIENCE: {audience}
 
@@ -1121,7 +1145,6 @@ EXTRACTED DATA (organize visually - create your own section headers based on the
 • {understanding.headline}
 • {understanding.what_it_does}
 • {understanding.business_value}
-• Audience: {understanding.who_benefits}
 • {understanding.differentiator}
 • {understanding.pain_point_addressed}
 
@@ -1441,7 +1464,7 @@ EMOTIONAL CORE: Make my day easier. Don't make me look stupid. Let me get home o
         # Field Crew: Special handling with simplified design
         if audience == "field_crew":
             style = persona.get("infographic_style", {})
-            return f"""AUDIENCE: {title}
+            return f"""FOR: {title}
 VOICE: {voice_tone}
 THEY CARE ABOUT: {', '.join(cares_about)}
 VALUE ANGLE: EASE - make their job easier, no ROI/savings talk
@@ -1454,7 +1477,7 @@ NEVER USE: {', '.join(forbidden[:5])}"""
 
         # C-Suite: Numbers and data focus
         if audience == "c_suite":
-            return f"""AUDIENCE: {title}
+            return f"""FOR: {title}
 VOICE: {voice_tone}
 THEY CARE ABOUT: {', '.join(cares_about)}
 VALUE ANGLE: ROI - show the math, the metrics, the return
@@ -1465,7 +1488,7 @@ NEVER USE: {', '.join(forbidden[:5])}"""
 
         # Business Owner: Emotional, pain→solution
         if audience == "business_owner":
-            return f"""AUDIENCE: {title}
+            return f"""FOR: {title}
 VOICE: {voice_tone}
 THEY CARE ABOUT: {', '.join(cares_about)}
 VALUE ANGLE: COI (Cost of Inaction) - what they LOSE by not acting
@@ -1476,7 +1499,7 @@ NEVER USE: {', '.join(forbidden[:5])}"""
 
         # BTL Champion: Day-in-life practical
         if audience == "btl_champion":
-            return f"""AUDIENCE: {title}
+            return f"""FOR: {title}
 VOICE: {voice_tone}
 THEY CARE ABOUT: {', '.join(cares_about)}
 VALUE ANGLE: COI - career risk of missing this, look good to boss
@@ -1487,7 +1510,7 @@ NEVER USE: {', '.join(forbidden[:5])}"""
 
         # VC/Investor: Investment thesis
         if audience == "top_tier_vc":
-            return f"""AUDIENCE: {title}
+            return f"""FOR: {title}
 VOICE: {voice_tone}
 THEY CARE ABOUT: {', '.join(cares_about)}
 VALUE ANGLE: ROI - market opportunity, defensibility, return profile
@@ -1498,7 +1521,7 @@ NEVER USE: {', '.join(forbidden[:5])}
 AVOID: Book a demo, contact sales, free trial, marketing buzzwords"""
 
         # Default fallback
-        return f"""AUDIENCE: {title}
+        return f"""FOR: {title}
 THEY CARE ABOUT: {', '.join(cares_about) if cares_about else 'results, efficiency'}
 VALUE ANGLE: {value_angle}
 TONE: {tone}"""

@@ -140,6 +140,11 @@ class UnifiedStoryboardTool(BaseTool):
                         "description": "Auto-open result in browser (default: true)",
                         "default": True,
                     },
+                    "supplementary_context": {
+                        "type": "string",
+                        "description": "Additional text context (transcript, notes) to combine with image input",
+                        "default": None,
+                    },
                 },
                 "required": ["input"],
             },
@@ -333,6 +338,7 @@ class UnifiedStoryboardTool(BaseTool):
         visual_style = arguments.get("visual_style", "polished")
         artist_style = arguments.get("artist_style")  # Optional: salvador_dali, monet, etc.
         open_browser = arguments.get("open_browser", True)
+        supplementary_context = arguments.get("supplementary_context")  # Optional text context for mixed input
 
         # Handle multiple images (input can be a list of base64 strings)
         is_multi_image = isinstance(input_value, list)
@@ -412,15 +418,17 @@ class UnifiedStoryboardTool(BaseTool):
             persona = get_audience_persona(audience)
 
             # Stage 1: Understand the content
-            logger.info("Stage 1: Understanding content...")
+            context_msg = f" with supplementary context ({len(supplementary_context)} chars)" if supplementary_context else ""
+            logger.info(f"Stage 1: Understanding content...{context_msg}")
             if is_image:
                 if isinstance(content, list):
                     # Multiple images - understand all of them together
-                    logger.info(f"Understanding {len(content)} images together...")
+                    logger.info(f"Understanding {len(content)} images together{context_msg}...")
                     understanding = await self.gemini_client.understand_multiple_images(
                         images_data=content,
                         icp_preset=icp,
                         audience=audience,
+                        supplementary_context=supplementary_context,
                     )
                 else:
                     assert isinstance(content, bytes)
@@ -428,6 +436,7 @@ class UnifiedStoryboardTool(BaseTool):
                         image_data=content,
                         icp_preset=icp,
                         audience=audience,  # Pass string, not persona dict
+                        supplementary_context=supplementary_context,
                     )
             else:
                 assert isinstance(content, str)
