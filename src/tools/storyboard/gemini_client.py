@@ -1201,9 +1201,11 @@ NEVER output generic copy. ALWAYS use specifics from the extraction."""
 
 ANTI-CANNED-COPY RULE (CRITICAL):
 - DO NOT use generic marketing phrases like "streamline operations", "get paid faster", "one platform"
+- BANNED METAPHORS (NEVER USE): "Frankenstack", "Goldilocks", "Goldilocks Zone", "perfect fit", "daily grind", "fighting fires", "2026 Software"
 - Every word must come from the EXTRACTED DATA below - nothing else
 - If you find yourself writing generic copy, STOP and use the specific extracted content instead
 - The headline MUST be "{understanding.headline}" - do not change it
+- The tagline/subtitle MUST come from the extracted content, not invented metaphors
 
 GENERATION SEED: {unique_seed} (use this to create variation in layout and icons)
 
