@@ -812,13 +812,17 @@ Return JSON:
         from datetime import datetime
         request_id = f"{datetime.now().isoformat()}-{uuid.uuid4().hex[:8]}"
 
-        # Build supplementary context section
+        # Build text context section - treat as EQUAL to image, not supplementary
         context_section = ""
         if supplementary_context and supplementary_context.strip():
             context_section = f"""
-SUPPLEMENTARY TEXT CONTEXT (combine with image analysis):
+=== TEXT CONTEXT (EQUALLY IMPORTANT AS IMAGE) ===
+The following text provides crucial context that MUST be synthesized with the image.
+Extract key insights from BOTH sources and combine them into a unified understanding.
+Do NOT prioritize one over the other - both are primary inputs.
+
 {supplementary_context[:16000]}
----
+===
 """
 
         prompt = f"""Analyze this image and extract ALL content.
@@ -826,7 +830,7 @@ REQUEST_ID: {request_id}
 {context_section}
 CRITICAL: Extract the ACTUAL content from this image.
 Do NOT generate generic copy. Do NOT make things up.
-{"If supplementary text context is provided, SYNTHESIZE both the image AND text into a unified understanding." if supplementary_context else ""}
+{"IMPORTANT: Text context is provided above. You MUST synthesize insights from BOTH the image AND text equally. Neither is more important than the other." if supplementary_context else ""}
 
 TARGET AUDIENCE: {audience}
 
@@ -941,13 +945,17 @@ Return JSON:
         from datetime import datetime
         request_id = f"{datetime.now().isoformat()}-{uuid.uuid4().hex[:8]}"
 
-        # Build supplementary context section
+        # Build text context section - treat as EQUAL to images, not supplementary
         context_section = ""
         if supplementary_context and supplementary_context.strip():
             context_section = f"""
-SUPPLEMENTARY TEXT CONTEXT (combine with image analysis):
+=== TEXT CONTEXT (EQUALLY IMPORTANT AS IMAGES) ===
+The following text provides crucial context that MUST be synthesized with the images.
+Extract key insights from BOTH sources and combine them into a unified understanding.
+Do NOT prioritize one over the other - both are primary inputs.
+
 {supplementary_context[:16000]}
----
+===
 """
 
         prompt = f"""Analyze these {len(images_data)} images and extract ALL content.
@@ -955,7 +963,7 @@ REQUEST_ID: {request_id}
 {context_section}
 CRITICAL: Extract ACTUAL content from each image.
 Do NOT generate generic copy. Do NOT make things up.
-{"If supplementary text context is provided, SYNTHESIZE both the images AND text into a unified understanding." if supplementary_context else ""}
+{"IMPORTANT: Text context is provided above. You MUST synthesize insights from BOTH the images AND text equally. Neither is more important than the other." if supplementary_context else ""}
 
 TARGET AUDIENCE: {audience}
 
