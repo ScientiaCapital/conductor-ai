@@ -7,13 +7,46 @@
 
 ---
 
-## Current Status (2025-12-05)
+## Current Status (2025-12-09)
+
+### Phase 9.0: Screen Recording Module - COMPLETE
+**Branch**: `main`
+**Tests**: 100 recording module tests + existing tests
+
+Implemented MVP screen recording module with Browserbase cloud browser and Runway video generation.
+
+**New Module**: `src/tools/recording/` (7 files, 1662 LOC)
+| File | Purpose |
+|------|---------|
+| `schemas.py` | Pydantic models: AuthConfig, ActionType, RecordingAction, etc. |
+| `config.py` | BrowserbaseConfig, RunwayConfig dataclasses |
+| `browserbase.py` | Cloud browser client (session mgmt, Playwright CDP) |
+| `runway_client.py` | Runway Gen-3 Alpha client (text/image-to-video) |
+| `screen_capture.py` | ScreenRecorderTool (BaseTool) |
+| `video_generator.py` | RunwayVideoGeneratorTool (BaseTool) |
+| `__init__.py` | Public exports |
+
+**Key Features**:
+- Generic auth support (cookies, headers, basic, OAuth placeholder)
+- Browserbase cloud browser sessions with Playwright over CDP
+- Runway text-to-video and image-to-video (Gen-3 Alpha Turbo)
+- Exponential backoff retry (5s, 10s, 15s)
+- 100 tests with full coverage
+
+**Environment Variables**:
+```bash
+BROWSERBASE_API_KEY=bb_live_xxx
+BROWSERBASE_PROJECT_ID=proj_xxx
+RUNWAY_API_KEY=key_xxx
+```
+
+---
 
 ### Phase 8.0: Mixed Input Parity & Anti-Canned-Copy - COMPLETE
 **Branch**: `main`
 **Tests**: 79 storyboard+demo tests passing
 
-Today's session focused on making mixed input (image + text) truly equal and eliminating Gemini's tendency to generate canned marketing metaphors.
+Session focused on making mixed input (image + text) truly equal and eliminating Gemini's tendency to generate canned marketing metaphors.
 
 **Key Changes:**
 1. **Text as PRIMARY INPUT #1**: When both image and text are provided, text is now placed FIRST in the prompt and labeled "PRIMARY INPUT #1" with explicit instruction to extract from text first
@@ -701,3 +734,4 @@ AgentRunner (ReAct Loop)
 ## Contact
 - **Repo**: https://github.com/ScientiaCapital/conductor-ai
 - **Branch**: main
+- NO OPENAI MODELS

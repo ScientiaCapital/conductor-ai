@@ -1,31 +1,34 @@
 # TASK.md - Conductor-AI
 
 **Project**: conductor-ai
-**Last Updated**: 2025-12-04 (Late EOD - Post Rollback)
+**Last Updated**: 2025-12-09
 
 ---
 
 ## Current Status
 
-**Phase 7.7: Persona Differentiation - STABLE (Rolled Back)**
+**Phase 9.0: Screen Recording Module - COMPLETE**
 
-⚠️ **ROLLBACK NOTE**: Phase 7.8 attempted but broke Vercel deployment.
-- Rolled back to Phase 7.7 working state
-- Root cause: `storyboard_config.py` import failed on Vercel
-- Local tests passed but serverless function crashed
-- Need to re-attempt with proper Vercel testing before deployment
+Implemented MVP screen recording module:
+- ✅ `src/tools/recording/` module (7 files, 1662 LOC)
+- ✅ BrowserbaseClient - Cloud browser sessions with Playwright CDP
+- ✅ RunwayClient - Text/image-to-video generation (Gen-3 Alpha)
+- ✅ ScreenRecorderTool - BaseTool wrapper for recording
+- ✅ RunwayVideoGeneratorTool - BaseTool wrapper for video generation
+- ✅ 100 tests passing (schemas, clients, tools)
+- ✅ Generic auth support (cookies, headers, basic, OAuth)
+- ✅ Exponential backoff retry (5s, 10s, 15s)
 
-**Phase 7.6: Intelligent Model Routing - COMPLETE**
+**Environment Variables Required**:
+```bash
+BROWSERBASE_API_KEY=bb_live_xxx
+BROWSERBASE_PROJECT_ID=proj_xxx
+RUNWAY_API_KEY=key_xxx
+```
 
-- ✅ 3-Stage Pipeline: EXTRACT → REFINE → GENERATE
-- ✅ DeepSeek V3 for text understanding (fast, reliable)
-- ✅ Qwen 2.5 VL 72B for vision/OCR (better doc understanding)
-- ✅ Gemini 3 Pro Image Preview for generation (FREE during preview)
-- ✅ Confidence-based refinement (< 0.75 triggers alternate model pass)
-- ✅ Fixed R1 hang issue (R1 is 60-120s, V3 is 3-5s)
-- ✅ VC storyboard polish - creative freedom for GTM/LinkedIn
+**Phase 8.0: Mixed Input Parity - COMPLETE**
 
-**Total Tests**: 727 (59 SDK + 204 core + 186 video + 202 storyboard + 58 knowledge + 18 demo)
+**Total Tests**: 827+ (727 previous + 100 recording module)
 
 **SQL Migrations**: All 4 migrations completed in Supabase
 
@@ -35,7 +38,10 @@
 
 ### 🔴 HIGH Priority
 
-**None currently** - Ready for user direction on next phase
+**Add API Keys to .env** - Recording module needs:
+- BROWSERBASE_API_KEY
+- BROWSERBASE_PROJECT_ID
+- RUNWAY_API_KEY
 
 ---
 
